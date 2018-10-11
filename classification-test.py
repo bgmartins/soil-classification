@@ -7,7 +7,8 @@ from sklearn_pandas import DataFrameMapper, cross_val_score
 def classification_report_with_accuracy_score(y_true, y_pred):
     print("==== REPORT OF RESULTS FOR ONE OF THE DATA FOLDS  ====")
     print(classification_report(y_true, y_pred))
-    return accuracy_score(y_true, y_pred)
+    acc=accuracy_score(y_true, y_pred)
+    return acc
 
 table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84',
