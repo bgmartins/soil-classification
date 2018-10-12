@@ -3,6 +3,22 @@ import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
 from sklearn.metrics import classification_report, accuracy_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
+#from gcforest.gcforest import GCForest
+
+def get_gcforest_config(n_classes=10):
+    config = {}
+    ca_config = {}
+    ca_config["random_state"] = 0
+    ca_config["max_layers"] = 100
+    ca_config["early_stopping_rounds"] = 3
+    ca_config["n_classes"] = n_classes
+    ca_config["estimators"] = []
+    ca_config["estimators"].append({"n_folds": 5, "type": "XGBClassifier", "n_estimators": 10, "max_depth": 5, "objective": "multi:softprob", "silent": True, "nthread": -1, "learning_rate": 0.1} )
+    ca_config["estimators"].append({"n_folds": 5, "type": "RandomForestClassifier", "n_estimators": 10, "max_depth": None, "n_jobs": -1})
+    ca_config["estimators"].append({"n_folds": 5, "type": "ExtraTreesClassifier", "n_estimators": 10, "max_depth": None, "n_jobs": -1})
+    ca_config["estimators"].append({"n_folds": 5, "type": "LogisticRegression"})
+    config["cascade"] = ca_config
+    return config
 
 def classification_report_with_accuracy_score(y_true, y_pred):
     print("==== REPORT OF RESULTS FOR ONE OF THE DATA FOLDS  ====")
@@ -49,5 +65,7 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncode
 							('PHIKCL', None),
 							('ORCDRC', None),
 							('CECSUM', None) ], sparse=True )
-pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('rf', sklearn.ensemble.RandomForestClassifier())] )
+classifier = sklearn.ensemble.RandomForestClassifier()
+#classifier = GCForest(get_gcforest_config())
+pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
 cross_val_score(pipe, X=table, y=table.WRB_2006_NAMEf, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
