@@ -47,6 +47,25 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'HZDTXT',
                                                                                                   'PHICAL'])})
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID').fillna(0) # TODO: consider using fillna(0) instead
+mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None,
+							('LONWGS84_x', None, 
+							('LATWGS84_x', None, 
+							(['DEPTH'], sklearn.preprocessing.KBinsDiscretizer(n_bins=5,encode='ordinal',strategy='quantile')),
+							('UHDICM.f', None),
+							('LHDICM.f', None),
+							('DEPTH.f', None),
+							('UHDICM', None),
+							('LHDICM', None),
+							('CRFVOL', None),
+							('SNDPPT', None),
+							('SLTPPT', None),
+							('CLYPPT', None),
+							('BLD', None),
+							('PHIHOX', None),
+							('PHIKCL', None),
+							('ORCDRC', None),
+							('CECSUM', None) ], sparse=True )
+table = mapper.fit_transform(table)
 mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncoder()),
 							(['LONWGS84_x'], sklearn.preprocessing.StandardScaler()), 
 							(['LATWGS84_x'], sklearn.preprocessing.StandardScaler()), 
