@@ -47,9 +47,9 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'HZDTXT',
                                                                                                   'PHICAL'])})
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID').fillna(0) # TODO: consider using fillna(0) instead
-mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None,
-							('LONWGS84_x', None, 
-							('LATWGS84_x', None, 
+mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None),
+							('LONWGS84_x', None), 
+							('LATWGS84_x', None), 
 							(['DEPTH'], sklearn.preprocessing.KBinsDiscretizer(n_bins=5,encode='ordinal',strategy='quantile')),
 							('UHDICM.f', None),
 							('LHDICM.f', None),
@@ -64,7 +64,8 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None,
 							('PHIHOX', None),
 							('PHIKCL', None),
 							('ORCDRC', None),
-							('CECSUM', None) ], sparse=True )
+							('CECSUM', None) ], df_out=True)
+
 table = mapper.fit_transform(table)
 mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncoder()),
 							(['LONWGS84_x'], sklearn.preprocessing.StandardScaler()), 
@@ -84,7 +85,7 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncode
 							('PHIKCL', None),
 							('ORCDRC', None),
 							('CECSUM', None) ], sparse=True )
-classifier = sklearn.ensemble.RandomForestClassifier()
+classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
 cross_val_score(pipe, X=table, y=table.WRB_2006_NAMEf, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
