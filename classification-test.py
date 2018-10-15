@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
@@ -46,8 +47,8 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'CECSUM',
                                                                                                   'HZDTXT',
                                                                                                   'PHICAL'])})
-table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID').fillna(0) # TODO: consider using fillna(0) instead
-mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None),
+table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
+mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None), ('CLEAN_ID', None),
 							('LONWGS84_x', None), 
 							('LATWGS84_x', None), 
 							(['DEPTH'], sklearn.preprocessing.KBinsDiscretizer(n_bins=5,encode='ordinal',strategy='quantile')),
@@ -65,26 +66,29 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None),
 							('PHIKCL', None),
 							('ORCDRC', None),
 							('CECSUM', None) ], df_out=True)
-
-table = mapper.fit_transform(table)
+newtable = mapper.fit_transform(table).pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
+newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
+table = table[['CLEAN_ID','WRB_2006_NAMEf']].drop_duplicates()
+newtable = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID').fillna(0)
+table = newtable
 mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncoder()),
-							(['LONWGS84_x'], sklearn.preprocessing.StandardScaler()), 
-							(['LATWGS84_x'], sklearn.preprocessing.StandardScaler()), 
-							('DEPTH', None),
-							('UHDICM.f', None),
-							('LHDICM.f', None),
-							('DEPTH.f', None),
-							('UHDICM', None),
-							('LHDICM', None),
-							('CRFVOL', None),
-							('SNDPPT', None),
-							('SLTPPT', None),
-							('CLYPPT', None),
-							('BLD', None),
-							('PHIHOX', None),
-							('PHIKCL', None),
-							('ORCDRC', None),
-							('CECSUM', None) ], sparse=True )
+                            (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
+                            (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
+                            ('UHDICMf00', None), ('UHDICMf10', None), ('UHDICMf20', None), ('UHDICMf30', None), ('UHDICMf40', None),
+                            ('LHDICMf00', None), ('LHDICMf10', None), ('LHDICMf20', None), ('LHDICMf30', None), ('LHDICMf40', None),
+                            ('DEPTHf00', None), ('DEPTHf10', None), ('DEPTHf20', None), ('DEPTHf30', None), ('DEPTHf40', None),
+                            ('UHDICM00', None), ('UHDICM10', None), ('UHDICM20', None), ('UHDICM30', None), ('UHDICM40', None),
+                            ('LHDICM00', None), ('LHDICM10', None), ('LHDICM20', None), ('LHDICM30', None), ('LHDICM40', None),
+                            ('CRFVOL00', None), ('CRFVOL10', None), ('CRFVOL20', None), ('CRFVOL30', None), ('CRFVOL40', None),
+                            ('SNDPPT00', None), ('SNDPPT10', None), ('SNDPPT20', None), ('SNDPPT30', None), ('SNDPPT40', None),
+                            ('SLTPPT00', None), ('SLTPPT10', None), ('SLTPPT20', None), ('SLTPPT30', None), ('SLTPPT40', None),
+                            ('CLYPPT00', None), ('CLYPPT10', None), ('CLYPPT20', None), ('CLYPPT30', None), ('CLYPPT40', None), 
+                            #('BLD00', None), ('BLD10', None), ('BLD20', None), ('BLD30', None), ('BLD40', None),
+                            ('PHIHOX00', None), ('PHIHOX10', None), ('PHIHOX20', None), ('PHIHOX30', None), ('PHIHOX40', None),
+                            ('PHIKCL00', None), ('PHIKCL10', None), ('PHIKCL20', None), ('PHIKCL30', None), ('PHIKCL40', None),
+                            ('ORCDRC00', None), ('ORCDRC10', None), ('ORCDRC20', None), ('ORCDRC30', None), ('ORCDRC40', None),
+                            ('CECSUM00', None), ('CECSUM10', None), ('CECSUM20', None), ('CECSUM30', None), ('CECSUM40', None) ])
+                            
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
