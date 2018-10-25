@@ -48,7 +48,7 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'PHICAL'])}, low_memory=False)
 
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
-table = table.assign(WRB_2006_NAMEf_2 = [ str(x).split(" ")[-1] for x in table.TAXNWRB ] )
+table_y = table_y.assign(WRB_2006_NAMEf_2 = [ str(x).split(" ")[-1] for x in table_y.TAXNWRB ] )
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 table = table.dropna(subset=['DEPTH'])
 mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', None), ('CLEAN_ID', None),
