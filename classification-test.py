@@ -48,9 +48,10 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'PHICAL'])}, low_memory=False)
 
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
+table = table.assign(WRB_2006_NAMEf_2 = [ str(x).split(" ")[-1] for x in table.TAXNWRB ] )
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 table = table.dropna(subset=['DEPTH'])
-mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None), ('CLEAN_ID', None),
+mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', None), ('CLEAN_ID', None),
 							('LONWGS84_x', None), 
 							('LATWGS84_x', None), 
 							(['DEPTH'], sklearn.preprocessing.KBinsDiscretizer(n_bins=5,encode='ordinal',strategy='quantile')),
@@ -70,10 +71,10 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None), ('CLEAN_ID', None),
 							('CECSUM', None) ], df_out=True)
 newtable = mapper.fit_transform(table).pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
 newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
-table = table[['CLEAN_ID','WRB_2006_NAMEf']].drop_duplicates()
+table = table[['CLEAN_ID','WRB_2006_NAMEf_2']].drop_duplicates()
 newtable = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
-table = newtable.dropna(subset=['WRB_2006_NAMEf']).fillna(0)
-mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncoder()),
+table = newtable.dropna(subset=['WRB_2006_NAMEf_2']).fillna(0)
+mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', sklearn.preprocessing.LabelEncoder()),
                             (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             ('UHDICMf00', None), ('UHDICMf10', None), ('UHDICMf20', None), ('UHDICMf30', None), ('UHDICMf40', None),
@@ -93,4 +94,4 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncode
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
-cross_val_score(pipe, X=table, y=table.WRB_2006_NAMEf, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
+cross_val_score(pipe, X=table, y=table.WRB_2006_NAMEf_2, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
