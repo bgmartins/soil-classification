@@ -45,9 +45,11 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'PHIKCL',
                                                                                                   'ORCDRC',
                                                                                                   'CECSUM',
-                                                                                                  'HZDTXT',
-                                                                                                  'PHICAL'])})
+                                                                                                  'PHICAL'])}, low_memory=False)
+
+table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
+table = table.dropna(subset=['DEPTH'])
 mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None), ('CLEAN_ID', None),
 							('LONWGS84_x', None), 
 							('LATWGS84_x', None), 
@@ -69,8 +71,8 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', None), ('CLEAN_ID', None),
 newtable = mapper.fit_transform(table).pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
 newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
 table = table[['CLEAN_ID','WRB_2006_NAMEf']].drop_duplicates()
-newtable = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID').fillna(0)
-table = newtable
+newtable = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
+table = newtable.dropna(subset=['WRB_2006_NAMEf']).fillna(0)
 mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncoder()),
                             (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
@@ -83,12 +85,11 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf', sklearn.preprocessing.LabelEncode
                             ('SNDPPT00', None), ('SNDPPT10', None), ('SNDPPT20', None), ('SNDPPT30', None), ('SNDPPT40', None),
                             ('SLTPPT00', None), ('SLTPPT10', None), ('SLTPPT20', None), ('SLTPPT30', None), ('SLTPPT40', None),
                             ('CLYPPT00', None), ('CLYPPT10', None), ('CLYPPT20', None), ('CLYPPT30', None), ('CLYPPT40', None), 
-                            #('BLD00', None), ('BLD10', None), ('BLD20', None), ('BLD30', None), ('BLD40', None),
+                            ('BLD00', None), ('BLD10', None), ('BLD20', None), ('BLD30', None), ('BLD40', None),
                             ('PHIHOX00', None), ('PHIHOX10', None), ('PHIHOX20', None), ('PHIHOX30', None), ('PHIHOX40', None),
                             ('PHIKCL00', None), ('PHIKCL10', None), ('PHIKCL20', None), ('PHIKCL30', None), ('PHIKCL40', None),
                             ('ORCDRC00', None), ('ORCDRC10', None), ('ORCDRC20', None), ('ORCDRC30', None), ('ORCDRC40', None),
                             ('CECSUM00', None), ('CECSUM10', None), ('CECSUM20', None), ('CECSUM30', None), ('CECSUM40', None) ])
-                            
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
