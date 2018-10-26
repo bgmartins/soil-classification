@@ -2,6 +2,7 @@ import re
 import numpy as np
 import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
+import inflect
 from sklearn.metrics import classification_report, accuracy_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
 #from gcforest.gcforest import GCForest
@@ -48,7 +49,7 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'PHICAL'])}, low_memory=False)
 
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
-table_y = table_y.assign(WRB_2006_NAMEf_2 = [ str(x).split(" ")[-1] for x in table_y.TAXNWRB ] )
+table_y = table_y.assign(WRB_2006_NAMEf_2 = [ re.compile('s$').sub('',re.sub('[()]', ' ',str(x)).strip().split(' ')[-1].lower().strip()) for x in table_y.TAXNWRB ] )
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 table = table.dropna(subset=['DEPTH'])
 mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', None), ('CLEAN_ID', None),
@@ -91,6 +92,9 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', sklearn.preprocessing.LabelEnco
                             ('PHIKCL00', None), ('PHIKCL10', None), ('PHIKCL20', None), ('PHIKCL30', None), ('PHIKCL40', None),
                             ('ORCDRC00', None), ('ORCDRC10', None), ('ORCDRC20', None), ('ORCDRC30', None), ('ORCDRC40', None),
                             ('CECSUM00', None), ('CECSUM10', None), ('CECSUM20', None), ('CECSUM30', None), ('CECSUM40', None) ])
+table_y = table_y['WRB_2006_NAMEf_2'].value_counts()
+print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
+print("Training and evaluating classifier through 10-fold cross-validation...")
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
