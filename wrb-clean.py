@@ -9,7 +9,7 @@
 import pandas
 
 # -- Extract Soil Groups --
-wrb = pandas.read_csv("TAXNWRB.pnts.csv", header=0)
+wrb = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 
 wrb['WRB_GROUP'] = wrb['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 
@@ -21,7 +21,7 @@ print("Total profiles in dataset: " + str(len(wrb.index)))
 wrb_clean = wrb[['LOC_ID', 'WRB_GROUP']]
 
 # -- Clean profile IDs --
-profiles = pandas.read_csv("all.pnts.csv", header=0)
+profiles = pandas.read_csv("PROPS_selection.csv", header=0)
 
 def clean_id(row):
     splt = str(row['LOC_ID']).split("_", 1)

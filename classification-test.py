@@ -49,10 +49,11 @@ table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 
                                                                                                   'PHICAL'])}, low_memory=False)
 
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
-table_y = table_y.assign(WRB_2006_NAMEf_2 = [ re.compile('s$').sub('',re.sub('[()]', ' ',str(x)).strip().split(' ')[-1].lower().strip()) for x in table_y.TAXNWRB ] )
+#table_y = table_y.assign(SOILCLASS = [ re.compile('s$').sub('',re.sub('[()]', ' ',str(x)).strip().split(' ')[-1].lower().strip()) for x in table_y.TAXNWRB ] )
+table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 table = table.dropna(subset=['DEPTH'])
-mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', None), ('CLEAN_ID', None),
+mapper = DataFrameMapper( [ ('SOILCLASS', None), ('CLEAN_ID', None),
 							('LONWGS84_x', None), 
 							('LATWGS84_x', None), 
 							(['DEPTH'], sklearn.preprocessing.KBinsDiscretizer(n_bins=5,encode='ordinal',strategy='quantile')),
@@ -72,10 +73,10 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', None), ('CLEAN_ID', None),
 							('CECSUM', None) ], df_out=True)
 newtable = mapper.fit_transform(table).pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
 newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
-table = table[['CLEAN_ID','WRB_2006_NAMEf_2']].drop_duplicates()
+table = table[['CLEAN_ID','SOILCLASS']].drop_duplicates()
 newtable = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
-table = newtable.dropna(subset=['WRB_2006_NAMEf_2']).fillna(0)
-mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', sklearn.preprocessing.LabelEncoder()),
+table = newtable.dropna(subset=['SOILCLASS']).fillna(0)
+mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
                             (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             ('UHDICMf00', None), ('UHDICMf10', None), ('UHDICMf20', None), ('UHDICMf30', None), ('UHDICMf40', None),
@@ -92,10 +93,11 @@ mapper = DataFrameMapper( [ ('WRB_2006_NAMEf_2', sklearn.preprocessing.LabelEnco
                             ('PHIKCL00', None), ('PHIKCL10', None), ('PHIKCL20', None), ('PHIKCL30', None), ('PHIKCL40', None),
                             ('ORCDRC00', None), ('ORCDRC10', None), ('ORCDRC20', None), ('ORCDRC30', None), ('ORCDRC40', None),
                             ('CECSUM00', None), ('CECSUM10', None), ('CECSUM20', None), ('CECSUM30', None), ('CECSUM40', None) ])
-table_y = table_y['WRB_2006_NAMEf_2'].value_counts()
+table_y = table_y['SOILCLASS'].value_counts()
 print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
+print(table_y)
 print("Training and evaluating classifier through 10-fold cross-validation...")
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
-cross_val_score(pipe, X=table, y=table.WRB_2006_NAMEf_2, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
+cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
