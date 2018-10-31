@@ -3,7 +3,7 @@ import numpy as np
 import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
 import inflect
-from sklearn.metrics import classification_report, accuracy_score, make_scorer
+from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
 #from gcforest.gcforest import GCForest
 
@@ -26,7 +26,13 @@ def classification_report_with_accuracy_score(y_true, y_pred):
     print("==== REPORT OF RESULTS FOR ONE OF THE DATA FOLDS  ====")
     print(classification_report(y_true, y_pred))
     acc=accuracy_score(y_true, y_pred)
-    return acc
+    pre_micro = precision_score(y_true, y_pred,average='micro')
+    rec_micro = recall_score(y_true, y_pred,average='micro')
+    f_1_micro = f1_score(y_true, y_pred,average='micro')
+    pre_macro = precision_score(y_true, y_pred,average='macro')
+    rec_macro = recall_score(y_true, y_pred,average='macro')
+    f_1_macro = f1_score(y_true, y_pred,average='macro')
+    return acc, pre_micro, rec_micro, f_1_micro, pre_macro, rec_macro, f_1_macro
 
 table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84',
@@ -100,4 +106,6 @@ print("Training and evaluating classifier through 10-fold cross-validation...")
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
-cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
+aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
+print("Overall results...")
+print(aux)
