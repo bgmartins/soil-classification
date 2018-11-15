@@ -3,8 +3,10 @@ import numpy as np
 import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
 import inflect
+import gdal
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
+from fancyimpute import KNN
 #from gcforest.gcforest import GCForest
 
 def get_gcforest_config(n_classes=10):
@@ -32,7 +34,11 @@ def classification_report_with_accuracy_score(y_true, y_pred):
     pre_macro = precision_score(y_true, y_pred,average='macro')
     rec_macro = recall_score(y_true, y_pred,average='macro')
     f_1_macro = f1_score(y_true, y_pred,average='macro')
-    return acc, pre_micro, rec_micro, f_1_micro, pre_macro, rec_macro, f_1_macro
+    pre_weighted = precision_score(y_true, y_pred,average='weighted')
+    rec_weighted = recall_score(y_true, y_pred,average='weighted')
+    f_1_weighted = f1_score(y_true, y_pred,average='weighted')
+    aux = acc, pre_micro, rec_micro, f_1_micro, pre_macro, rec_macro, f_1_macro
+    return acc
 
 table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84',
@@ -58,11 +64,15 @@ table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID
 #table_y = table_y.assign(SOILCLASS = [ re.compile('s$').sub('',re.sub('[()]', ' ',str(x)).strip().split(' ')[-1].lower().strip()) for x in table_y.TAXNWRB ] )
 table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
-table = table.dropna(subset=['DEPTH'])
+
+#TODO: Check the validity of filling the missing values for DEPTH with basis on the average DEPTH value for the entire collection
+table['DEPTH'].fillna((table['DEPTH'].mean()), inplace=True)
+table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[0, 5, 15, 30, 60, 100, 200], right=True, labels=[0, 1, 2, 3, 4, 5])
+
 mapper = DataFrameMapper( [ ('SOILCLASS', None), ('CLEAN_ID', None),
 							('LONWGS84_x', None), 
 							('LATWGS84_x', None), 
-							(['DEPTH'], sklearn.preprocessing.KBinsDiscretizer(n_bins=5,encode='ordinal',strategy='quantile')),
+							('DEPTH', None),
 							('UHDICM.f', None),
 							('LHDICM.f', None),
 							('DEPTH.f', None),
@@ -77,28 +87,46 @@ mapper = DataFrameMapper( [ ('SOILCLASS', None), ('CLEAN_ID', None),
 							('PHIKCL', None),
 							('ORCDRC', None),
 							('CECSUM', None) ], df_out=True)
-newtable = mapper.fit_transform(table).pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
+newtable = mapper.fit_transform(table)
+
+for col in newtable.columns[newtable.isnull().any()]:
+  aux = newtable[['LONWGS84_x','LATWGS84_x','DEPTH.f',col]].values
+  #newtable[col] = KNN(k=2).fit_transform(aux)[:3]
+newtable = newtable.fillna(newtable.mean())
+
+newtable = newtable.pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
 newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
 table = table[['CLEAN_ID','SOILCLASS']].drop_duplicates()
-newtable = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
-table = newtable.dropna(subset=['SOILCLASS']).fillna(0)
+table = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
+
+for col in table.columns[table.isnull().any()]:
+  newaux = table[['LONWGS84_x00','LATWGS84_x00','DEPTHf00',col]].values
+  #newtable[col] = KNN(k=2).fit_transform(aux)[:3]
+table = table.fillna(table.mean())
+
 mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
                             (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
-                            ('UHDICMf00', None), ('UHDICMf10', None), ('UHDICMf20', None), ('UHDICMf30', None), ('UHDICMf40', None),
-                            ('LHDICMf00', None), ('LHDICMf10', None), ('LHDICMf20', None), ('LHDICMf30', None), ('LHDICMf40', None),
-                            ('DEPTHf00', None), ('DEPTHf10', None), ('DEPTHf20', None), ('DEPTHf30', None), ('DEPTHf40', None),
-                            ('UHDICM00', None), ('UHDICM10', None), ('UHDICM20', None), ('UHDICM30', None), ('UHDICM40', None),
-                            ('LHDICM00', None), ('LHDICM10', None), ('LHDICM20', None), ('LHDICM30', None), ('LHDICM40', None),
-                            ('CRFVOL00', None), ('CRFVOL10', None), ('CRFVOL20', None), ('CRFVOL30', None), ('CRFVOL40', None),
-                            ('SNDPPT00', None), ('SNDPPT10', None), ('SNDPPT20', None), ('SNDPPT30', None), ('SNDPPT40', None),
-                            ('SLTPPT00', None), ('SLTPPT10', None), ('SLTPPT20', None), ('SLTPPT30', None), ('SLTPPT40', None),
-                            ('CLYPPT00', None), ('CLYPPT10', None), ('CLYPPT20', None), ('CLYPPT30', None), ('CLYPPT40', None), 
-                            ('BLD00', None), ('BLD10', None), ('BLD20', None), ('BLD30', None), ('BLD40', None),
-                            ('PHIHOX00', None), ('PHIHOX10', None), ('PHIHOX20', None), ('PHIHOX30', None), ('PHIHOX40', None),
-                            ('PHIKCL00', None), ('PHIKCL10', None), ('PHIKCL20', None), ('PHIKCL30', None), ('PHIKCL40', None),
-                            ('ORCDRC00', None), ('ORCDRC10', None), ('ORCDRC20', None), ('ORCDRC30', None), ('ORCDRC40', None),
-                            ('CECSUM00', None), ('CECSUM10', None), ('CECSUM20', None), ('CECSUM30', None), ('CECSUM40', None) ])
+                            ('UHDICMf00', None), 
+                            ('UHDICMf10', None), 
+                            ('UHDICMf20', None), 
+                            ('UHDICMf30', None), 
+                            ('UHDICMf40', None), 
+                            ('UHDICMf50', None),
+                            ('LHDICMf00', None), 
+                            ('LHDICMf10', None), ('LHDICMf20', None), ('LHDICMf30', None), ('LHDICMf40', None), ('LHDICMf50', None),
+                            ('DEPTHf00', None), ('DEPTHf10', None), ('DEPTHf20', None), ('DEPTHf30', None), ('DEPTHf40', None), ('DEPTHf50', None),
+                            ('UHDICM00', None), ('UHDICM10', None), ('UHDICM20', None), ('UHDICM30', None), ('UHDICM40', None), ('UHDICM50', None),
+                            ('LHDICM00', None), ('LHDICM10', None), ('LHDICM20', None), ('LHDICM30', None), ('LHDICM40', None), ('LHDICM50', None),
+                            ('CRFVOL00', None), ('CRFVOL10', None), ('CRFVOL20', None), ('CRFVOL30', None), ('CRFVOL40', None), ('CRFVOL50', None),
+                            ('SNDPPT00', None), ('SNDPPT10', None), ('SNDPPT20', None), ('SNDPPT30', None), ('SNDPPT40', None), ('SNDPPT50', None),
+                            ('SLTPPT00', None), ('SLTPPT10', None), ('SLTPPT20', None), ('SLTPPT30', None), ('SLTPPT40', None), ('SLTPPT50', None),
+                            ('CLYPPT00', None), ('CLYPPT10', None), ('CLYPPT20', None), ('CLYPPT30', None), ('CLYPPT40', None), ('CLYPPT50', None),
+                            ('BLD00', None), ('BLD10', None), ('BLD20', None), ('BLD30', None), ('BLD40', None), ('BLD50', None),
+                            ('PHIHOX00', None), ('PHIHOX10', None), ('PHIHOX20', None), ('PHIHOX30', None), ('PHIHOX40', None), ('PHIHOX50', None),
+                            ('PHIKCL00', None), ('PHIKCL10', None), ('PHIKCL20', None), ('PHIKCL30', None), ('PHIKCL40', None), ('PHIKCL50', None),
+                            ('ORCDRC00', None), ('ORCDRC10', None), ('ORCDRC20', None), ('ORCDRC30', None), ('ORCDRC40', None), ('ORCDRC50', None),
+                            ('CECSUM00', None), ('CECSUM10', None), ('CECSUM20', None), ('CECSUM30', None), ('CECSUM40', None), ('CECSUM50', None) ])
 table_y = table_y['SOILCLASS'].value_counts()
 print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
 print(table_y)
@@ -108,4 +136,4 @@ classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
 aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
 print("Overall results...")
-print(aux)
+print(aux.mean())
