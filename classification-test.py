@@ -1,9 +1,9 @@
 import re
 import numpy as np
+import georasters as gr
 import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
 import inflect
-import gdal
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from fancyimpute import KNN
@@ -41,24 +41,15 @@ def classification_report_with_accuracy_score(y_true, y_pred):
     return acc
 
 table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
-table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84',
-                                                                                                  'LONWGS84',
-                                                                                                  'DEPTH',
-                                                                                                  'UHDICM.f',
-                                                                                                  'LHDICM.f',
-                                                                                                  'DEPTH.f',
-                                                                                                  'UHDICM',
-                                                                                                  'LHDICM',
-                                                                                                  'CRFVOL',
-                                                                                                  'SNDPPT',
-                                                                                                  'SLTPPT',
-                                                                                                  'CLYPPT',
-                                                                                                  'BLD',
-                                                                                                  'PHIHOX',
-                                                                                                  'PHIKCL',
-                                                                                                  'ORCDRC',
-                                                                                                  'CECSUM',
-                                                                                                  'PHICAL'])}, low_memory=False)
+
+table_y["LANDCOV"] = 0
+NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
+table = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
+for index, row in table_y.iterrows():
+    print( row['LONWGS84'] )
+    table_y[index]['LANDCOV'] = table.map_pixel(row['LATWGS84'], row['LONWGS84'])
+
+table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84', 'LONWGS84', 'DEPTH', 'UHDICM.f', 'LHDICM.f', 'DEPTH.f', 'UHDICM', 'LHDICM', 'CRFVOL', 'SNDPPT', 'SLTPPT', 'CLYPPT', 'BLD', 'PHIHOX', 'PHIKCL', 'ORCDRC', 'CECSUM', 'PHICAL'])}, low_memory=False)
 
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
 #table_y = table_y.assign(SOILCLASS = [ re.compile('s$').sub('',re.sub('[()]', ' ',str(x)).strip().split(' ')[-1].lower().strip()) for x in table_y.TAXNWRB ] )
