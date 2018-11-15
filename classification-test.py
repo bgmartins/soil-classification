@@ -41,43 +41,44 @@ def classification_report_with_accuracy_score(y_true, y_pred):
     return acc
 
 table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
+table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 
-table_y["LANDCOV"] = 0
+table_y["LANDCOV"] = None 
 NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
 table = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
 for index, row in table_y.iterrows():
-    print( row['LONWGS84'] )
-    table_y[index]['LANDCOV'] = table.map_pixel(row['LATWGS84'], row['LONWGS84'])
+    try: val = table.map_pixel(row['LONWGS84'], row['LATWGS84'])
+    except: val = None
+    table_y.set_value(index,'LANDCOV',val)
 
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84', 'LONWGS84', 'DEPTH', 'UHDICM.f', 'LHDICM.f', 'DEPTH.f', 'UHDICM', 'LHDICM', 'CRFVOL', 'SNDPPT', 'SLTPPT', 'CLYPPT', 'BLD', 'PHIHOX', 'PHIKCL', 'ORCDRC', 'CECSUM', 'PHICAL'])}, low_memory=False)
-
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
-#table_y = table_y.assign(SOILCLASS = [ re.compile('s$').sub('',re.sub('[()]', ' ',str(x)).strip().split(' ')[-1].lower().strip()) for x in table_y.TAXNWRB ] )
-table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 
 #TODO: Check the validity of filling the missing values for DEPTH with basis on the average DEPTH value for the entire collection
 table['DEPTH'].fillna((table['DEPTH'].mean()), inplace=True)
 table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[0, 5, 15, 30, 60, 100, 200], right=True, labels=[0, 1, 2, 3, 4, 5])
 
-mapper = DataFrameMapper( [ ('SOILCLASS', None), ('CLEAN_ID', None),
-							('LONWGS84_x', None), 
-							('LATWGS84_x', None), 
-							('DEPTH', None),
-							('UHDICM.f', None),
-							('LHDICM.f', None),
-							('DEPTH.f', None),
-							('UHDICM', None),
-							('LHDICM', None),
-							('CRFVOL', None),
-							('SNDPPT', None),
-							('SLTPPT', None),
-							('CLYPPT', None),
-							('BLD', None),
-							('PHIHOX', None),
-							('PHIKCL', None),
-							('ORCDRC', None),
-							('CECSUM', None) ], df_out=True)
+mapper = DataFrameMapper( [ ('SOILCLASS', None),
+                            ('LANDCOV', None),
+                            ('CLEAN_ID', None),
+                            ('LONWGS84_x', None), 
+                            ('LATWGS84_x', None), 
+                            ('DEPTH', None),
+                            ('UHDICM.f', None),
+                            ('LHDICM.f', None),
+                            ('DEPTH.f', None),
+                            ('UHDICM', None),
+                            ('LHDICM', None),
+                            ('CRFVOL', None),
+                            ('SNDPPT', None),
+                            ('SLTPPT', None),
+                            ('CLYPPT', None),
+                            ('BLD', None),
+                            ('PHIHOX', None),
+                            ('PHIKCL', None),
+                            ('ORCDRC', None),
+                            ('CECSUM', None) ], df_out=True)
 newtable = mapper.fit_transform(table)
 
 for col in newtable.columns[newtable.isnull().any()]:
@@ -96,6 +97,7 @@ for col in table.columns[table.isnull().any()]:
 table = table.fillna(table.mean())
 
 mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
+                            ('LANDCOV', sklearn.preprocessing.OneHotEncoder()),
                             (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             ('UHDICMf00', None), 
