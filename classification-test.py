@@ -40,9 +40,11 @@ def classification_report_with_accuracy_score(y_true, y_pred):
     aux = acc, pre_micro, rec_micro, f_1_micro, pre_macro, rec_macro, f_1_macro
     return acc
 
+print("Reading information on soil classes...")
 table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 
+print("Reading information on land coverage...")
 table_y["LANDCOV"] = None 
 NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
 table = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
@@ -51,10 +53,12 @@ for index, row in table_y.iterrows():
     except: val = None
     table_y.set_value(index,'LANDCOV',val)
 
+print("Reading information on soil properties...")
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84', 'LONWGS84', 'DEPTH', 'UHDICM.f', 'LHDICM.f', 'DEPTH.f', 'UHDICM', 'LHDICM', 'CRFVOL', 'SNDPPT', 'SLTPPT', 'CLYPPT', 'BLD', 'PHIHOX', 'PHIKCL', 'ORCDRC', 'CECSUM', 'PHICAL'])}, low_memory=False)
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
 table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 
+print("Grouping soil properties with basis on depth...")
 #TODO: Check the validity of filling the missing values for DEPTH with basis on the average DEPTH value for the entire collection
 table['DEPTH'].fillna((table['DEPTH'].mean()), inplace=True)
 table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[0, 5, 15, 30, 60, 100, 200], right=True, labels=[0, 1, 2, 3, 4, 5])
@@ -81,6 +85,7 @@ mapper = DataFrameMapper( [ ('SOILCLASS', None),
                             ('CECSUM', None) ], df_out=True)
 newtable = mapper.fit_transform(table)
 
+print("Interpolating information for properties with missing values...")
 for col in newtable.columns[newtable.isnull().any()]:
   aux = newtable[['LONWGS84_x','LATWGS84_x','DEPTH.f',col]].values
   #newtable[col] = KNN(k=2).fit_transform(aux)[:3]
@@ -97,7 +102,7 @@ for col in table.columns[table.isnull().any()]:
 table = table.fillna(table.mean())
 
 mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
-                            ('LANDCOV', sklearn.preprocessing.OneHotEncoder()),
+                            ('LANDCOV00', sklearn.preprocessing.OneHotEncoder()),
                             (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             ('UHDICMf00', None), 
@@ -107,11 +112,35 @@ mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
                             ('UHDICMf40', None), 
                             ('UHDICMf50', None),
                             ('LHDICMf00', None), 
-                            ('LHDICMf10', None), ('LHDICMf20', None), ('LHDICMf30', None), ('LHDICMf40', None), ('LHDICMf50', None),
-                            ('DEPTHf00', None), ('DEPTHf10', None), ('DEPTHf20', None), ('DEPTHf30', None), ('DEPTHf40', None), ('DEPTHf50', None),
-                            ('UHDICM00', None), ('UHDICM10', None), ('UHDICM20', None), ('UHDICM30', None), ('UHDICM40', None), ('UHDICM50', None),
-                            ('LHDICM00', None), ('LHDICM10', None), ('LHDICM20', None), ('LHDICM30', None), ('LHDICM40', None), ('LHDICM50', None),
-                            ('CRFVOL00', None), ('CRFVOL10', None), ('CRFVOL20', None), ('CRFVOL30', None), ('CRFVOL40', None), ('CRFVOL50', None),
+                            ('LHDICMf10', None), 
+                            ('LHDICMf20', None), 
+                            ('LHDICMf30', None), 
+                            ('LHDICMf40', None), 
+                            ('LHDICMf50', None),
+                            ('DEPTHf00', None), 
+                            ('DEPTHf10', None), 
+                            ('DEPTHf20', None), 
+                            ('DEPTHf30', None), 
+                            ('DEPTHf40', None), 
+                            ('DEPTHf50', None),
+                            ('UHDICM00', None), 
+                            ('UHDICM10', None), 
+                            ('UHDICM20', None), 
+                            ('UHDICM30', None), 
+                            ('UHDICM40', None), 
+                            ('UHDICM50', None),
+                            ('LHDICM00', None), 
+                            ('LHDICM10', None), 
+                            ('LHDICM20', None), 
+                            ('LHDICM30', None), 
+                            ('LHDICM40', None), 
+                            ('LHDICM50', None),
+                            ('CRFVOL00', None), 
+                            ('CRFVOL10', None), 
+                            ('CRFVOL20', None), 
+                            ('CRFVOL30', None), 
+                            ('CRFVOL40', None), 
+                            ('CRFVOL50', None),
                             ('SNDPPT00', None), ('SNDPPT10', None), ('SNDPPT20', None), ('SNDPPT30', None), ('SNDPPT40', None), ('SNDPPT50', None),
                             ('SLTPPT00', None), ('SLTPPT10', None), ('SLTPPT20', None), ('SLTPPT30', None), ('SLTPPT40', None), ('SLTPPT50', None),
                             ('CLYPPT00', None), ('CLYPPT10', None), ('CLYPPT20', None), ('CLYPPT30', None), ('CLYPPT40', None), ('CLYPPT50', None),
