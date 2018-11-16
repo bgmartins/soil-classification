@@ -4,6 +4,7 @@ import georasters as gr
 import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
 import inflect
+from xgboost import XGBClassifier
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from fancyimpute import KNN
@@ -63,26 +64,26 @@ print("Grouping soil properties with basis on depth...")
 table['DEPTH'].fillna((table['DEPTH'].mean()), inplace=True)
 table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[0, 5, 15, 30, 60, 100, 200], right=True, labels=[0, 1, 2, 3, 4, 5])
 
-mapper = DataFrameMapper( [ ('SOILCLASS', None),
-                            ('LANDCOV', None),
-                            ('CLEAN_ID', None),
-                            ('LONWGS84_x', None), 
-                            ('LATWGS84_x', None), 
-                            ('DEPTH', None),
-                            ('UHDICM.f', None),
-                            ('LHDICM.f', None),
-                            ('DEPTH.f', None),
-                            ('UHDICM', None),
-                            ('LHDICM', None),
-                            ('CRFVOL', None),
-                            ('SNDPPT', None),
-                            ('SLTPPT', None),
-                            ('CLYPPT', None),
-                            ('BLD', None),
-                            ('PHIHOX', None),
-                            ('PHIKCL', None),
-                            ('ORCDRC', None),
-                            ('CECSUM', None) ], df_out=True)
+mapper = DataFrameMapper( [ ('SOILCLASS', None), # Soil classification
+                            ('LANDCOV', None), # Land coverage class from GlobCover
+                            ('CLEAN_ID', None), # Unique identifier for each measurement point
+                            ('LONWGS84_x', None), # Longitute coodinates for measurement points
+                            ('LATWGS84_x', None), # Latitude coordinates for measurement points
+                            ('DEPTH', None), # Depth of the measurement
+                            ('UHDICM.f', None), #
+                            ('LHDICM.f', None), #
+                            ('DEPTH.f', None), # Depth of the measurement
+                            ('UHDICM', None), # 
+                            ('LHDICM', None), #
+                            ('CRFVOL', None), # Coarse fragments volumetric in %
+                            ('SNDPPT', None), # Sand content (50-2000 micro meter) mass fraction in %
+                            ('SLTPPT', None), # Silt content (2-50 micro meter) mass fraction in %
+                            ('CLYPPT', None), # Clay content (0-2 micro meter) mass fraction in %
+                            ('BLD', None), Bulk density (fine earth) in kg / cubic-meter
+                            ('PHIHOX', None), # Soil pH x 10 in H2O
+                            ('PHIKCL', None), # 
+                            ('ORCDRC', None), # Soil organic carbon content (fine earth fraction) in permilles
+                            ('CECSUM', None) ], df_out=True) # 
 newtable = mapper.fit_transform(table)
 
 print("Interpolating information for properties with missing values...")
@@ -100,6 +101,8 @@ for col in table.columns[table.isnull().any()]:
   newaux = table[['LONWGS84_x00','LATWGS84_x00','DEPTHf00',col]].values
   #newtable[col] = KNN(k=2).fit_transform(aux)[:3]
 table = table.fillna(table.mean())
+
+print(newtable.columns.values)
 
 mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
                             ('LANDCOV00', sklearn.preprocessing.OneHotEncoder()),
@@ -141,18 +144,59 @@ mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
                             ('CRFVOL30', None), 
                             ('CRFVOL40', None), 
                             ('CRFVOL50', None),
-                            ('SNDPPT00', None), ('SNDPPT10', None), ('SNDPPT20', None), ('SNDPPT30', None), ('SNDPPT40', None), ('SNDPPT50', None),
-                            ('SLTPPT00', None), ('SLTPPT10', None), ('SLTPPT20', None), ('SLTPPT30', None), ('SLTPPT40', None), ('SLTPPT50', None),
-                            ('CLYPPT00', None), ('CLYPPT10', None), ('CLYPPT20', None), ('CLYPPT30', None), ('CLYPPT40', None), ('CLYPPT50', None),
-                            ('BLD00', None), ('BLD10', None), ('BLD20', None), ('BLD30', None), ('BLD40', None), ('BLD50', None),
-                            ('PHIHOX00', None), ('PHIHOX10', None), ('PHIHOX20', None), ('PHIHOX30', None), ('PHIHOX40', None), ('PHIHOX50', None),
-                            ('PHIKCL00', None), ('PHIKCL10', None), ('PHIKCL20', None), ('PHIKCL30', None), ('PHIKCL40', None), ('PHIKCL50', None),
-                            ('ORCDRC00', None), ('ORCDRC10', None), ('ORCDRC20', None), ('ORCDRC30', None), ('ORCDRC40', None), ('ORCDRC50', None),
-                            ('CECSUM00', None), ('CECSUM10', None), ('CECSUM20', None), ('CECSUM30', None), ('CECSUM40', None), ('CECSUM50', None) ])
+                            ('SNDPPT00', None), 
+                            ('SNDPPT10', None), 
+                            ('SNDPPT20', None), 
+                            ('SNDPPT30', None), 
+                            ('SNDPPT40', None), 
+                            ('SNDPPT50', None),
+                            ('SLTPPT00', None), 
+                            ('SLTPPT10', None), 
+                            ('SLTPPT20', None), 
+                            ('SLTPPT30', None), 
+                            ('SLTPPT40', None), 
+                            ('SLTPPT50', None),
+                            ('CLYPPT00', None), 
+                            ('CLYPPT10', None), 
+                            ('CLYPPT20', None), 
+                            ('CLYPPT30', None), 
+                            ('CLYPPT40', None), 
+                            ('CLYPPT50', None),
+                            ('BLD00', None), 
+                            ('BLD10', None), 
+                            ('BLD20', None), 
+                            ('BLD30', None), 
+                            ('BLD40', None), 
+                            ('BLD50', None),
+                            ('PHIHOX00', None), 
+                            ('PHIHOX10', None), 
+                            ('PHIHOX20', None), 
+                            ('PHIHOX30', None), 
+                            ('PHIHOX40', None), 
+                            ('PHIHOX50', None),
+                            ('PHIKCL00', None), 
+                            ('PHIKCL10', None), 
+                            ('PHIKCL20', None), 
+                            ('PHIKCL30', None), 
+                            ('PHIKCL40', None), 
+                            ('PHIKCL50', None),
+                            ('ORCDRC00', None), 
+                            ('ORCDRC10', None), 
+                            ('ORCDRC20', None), 
+                            ('ORCDRC30', None), 
+                            ('ORCDRC40', None), 
+                            ('ORCDRC50', None),
+                            ('CECSUM00', None), 
+                            ('CECSUM10', None), 
+                            ('CECSUM20', None), 
+                            ('CECSUM30', None), 
+                            ('CECSUM40', None), 
+                            ('CECSUM50', None) ])
 table_y = table_y['SOILCLASS'].value_counts()
 print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
 print(table_y)
 print("Training and evaluating classifier through 10-fold cross-validation...")
+classifier = XGBClassifier()
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
