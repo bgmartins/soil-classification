@@ -79,7 +79,7 @@ mapper = DataFrameMapper( [ ('SOILCLASS', None), # Soil classification
                             ('SNDPPT', None), # Sand content (50-2000 micro meter) mass fraction in %
                             ('SLTPPT', None), # Silt content (2-50 micro meter) mass fraction in %
                             ('CLYPPT', None), # Clay content (0-2 micro meter) mass fraction in %
-                            ('BLD', None), Bulk density (fine earth) in kg / cubic-meter
+                            ('BLD', None), # Bulk density (fine earth) in kg / cubic-meter
                             ('PHIHOX', None), # Soil pH x 10 in H2O
                             ('PHIKCL', None), # 
                             ('ORCDRC', None), # Soil organic carbon content (fine earth fraction) in permilles
