@@ -47,7 +47,7 @@ table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 
 print("Reading information on land coverage...")
-table_y["LANDCOV"] = 210
+table_y["LANDCOV"] = "210"
 NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
 added = 0
 table = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
@@ -56,7 +56,7 @@ for index, row in table_y.iterrows():
       val = table.map_pixel(row['LONWGS84'], row['LATWGS84'])
       added += 1
     except: val = None
-    table_y.set_value(index,'LANDCOV',val)
+    table_y.set_value(index,'LANDCOV',str(val))
 print("Added land coverage information to " + repr(added) + " instances out of " + repr(len(table_y)) + " sample locations...")
 
 print("Reading information on soil properties...")
