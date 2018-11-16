@@ -5,6 +5,7 @@ import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
 import inflect
 from xgboost import XGBClassifier
+from catboost import CatBoostClassifier
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from fancyimpute import KNN
@@ -46,13 +47,17 @@ table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
 
 print("Reading information on land coverage...")
-table_y["LANDCOV"] = None 
+table_y["LANDCOV"] = 210
 NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
+added = 0
 table = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
 for index, row in table_y.iterrows():
-    try: val = table.map_pixel(row['LONWGS84'], row['LATWGS84'])
+    try: 
+      val = table.map_pixel(row['LONWGS84'], row['LATWGS84'])
+      added += 1
     except: val = None
     table_y.set_value(index,'LANDCOV',val)
+print("Added land coverage information to " + repr(added) + " instances out of " + repr(len(table_y)) + " sample locations...")
 
 print("Reading information on soil properties...")
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84', 'LONWGS84', 'DEPTH', 'UHDICM.f', 'LHDICM.f', 'DEPTH.f', 'UHDICM', 'LHDICM', 'CRFVOL', 'SNDPPT', 'SLTPPT', 'CLYPPT', 'BLD', 'PHIHOX', 'PHIKCL', 'ORCDRC', 'CECSUM', 'PHICAL'])}, low_memory=False)
@@ -94,7 +99,7 @@ newtable = newtable.fillna(newtable.mean())
 
 newtable = newtable.pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
 newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
-table = table[['CLEAN_ID','SOILCLASS']].drop_duplicates()
+table = table[['CLEAN_ID','SOILCLASS','LANDCOV']].drop_duplicates()
 table = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
 
 for col in table.columns[table.isnull().any()]:
@@ -102,10 +107,8 @@ for col in table.columns[table.isnull().any()]:
   #newtable[col] = KNN(k=2).fit_transform(aux)[:3]
 table = table.fillna(table.mean())
 
-print(newtable.columns.values)
-
 mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
-                            ('LANDCOV00', sklearn.preprocessing.OneHotEncoder()),
+                            (['LANDCOV'], sklearn.preprocessing.OneHotEncoder()),
                             (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
                             ('UHDICMf00', None), 
@@ -194,10 +197,11 @@ mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
                             ('CECSUM50', None) ])
 table_y = table_y['SOILCLASS'].value_counts()
 print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
-print(table_y)
+for i,v in table_y.iteritems(): print("\t" + i + " : " + repr(v))
 print("Training and evaluating classifier through 10-fold cross-validation...")
-classifier = XGBClassifier()
-classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=100)
+classifier = XGBClassifier(n_estimators=250)
+classifier = CatBoostClassifier()
+classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=250)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
 aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
