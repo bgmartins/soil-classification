@@ -1,6 +1,7 @@
 import re
 import numpy as np
 import georasters as gr
+import matplotlib.pyplot as plt
 import pandas
 import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metrics
 import inflect
@@ -8,10 +9,10 @@ from xgboost import XGBClassifier
 from catboost import CatBoostClassifier
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
-from fancyimpute import KNN
+from sklearn.externals import joblib
 #from gcforest.gcforest import GCForest
 
-def get_gcforest_config(n_classes=10):
+def get_gcforest_config(n_classes=30):
     config = {}
     ca_config = {}
     ca_config["random_state"] = 0
@@ -19,9 +20,9 @@ def get_gcforest_config(n_classes=10):
     ca_config["early_stopping_rounds"] = 3
     ca_config["n_classes"] = n_classes
     ca_config["estimators"] = []
-    ca_config["estimators"].append({"n_folds": 5, "type": "XGBClassifier", "n_estimators": 10, "max_depth": 5, "objective": "multi:softprob", "silent": True, "nthread": -1, "learning_rate": 0.1} )
-    ca_config["estimators"].append({"n_folds": 5, "type": "RandomForestClassifier", "n_estimators": 10, "max_depth": None, "n_jobs": -1})
-    ca_config["estimators"].append({"n_folds": 5, "type": "ExtraTreesClassifier", "n_estimators": 10, "max_depth": None, "n_jobs": -1})
+    ca_config["estimators"].append({"n_folds": 5, "type": "XGBClassifier", "n_estimators": 250, "max_depth": 5, "objective": "multi:softprob", "silent": True, "nthread": -1, "learning_rate": 0.1} )
+    ca_config["estimators"].append({"n_folds": 5, "type": "RandomForestClassifier", "n_estimators": 250, "max_depth": None, "n_jobs": -1})
+    ca_config["estimators"].append({"n_folds": 5, "type": "ExtraTreesClassifier", "n_estimators": 250, "max_depth": None, "n_jobs": -1})
     ca_config["estimators"].append({"n_folds": 5, "type": "LogisticRegression"})
     config["cascade"] = ca_config
     return config
@@ -39,7 +40,9 @@ def classification_report_with_accuracy_score(y_true, y_pred):
     pre_weighted = precision_score(y_true, y_pred,average='weighted')
     rec_weighted = recall_score(y_true, y_pred,average='weighted')
     f_1_weighted = f1_score(y_true, y_pred,average='weighted')
-    aux = acc, pre_micro, rec_micro, f_1_micro, pre_macro, rec_macro, f_1_macro
+    global test_results
+    if test_results is None : test_results = [ ( acc, pre_micro, rec_micro, f_1_micro, pre_macro, rec_macro, f_1_macro ) ]
+    else: test_results.append( ( acc, pre_micro, rec_micro, f_1_micro, pre_macro, rec_macro, f_1_macro ) )
     return acc
 
 print("Reading information on soil classes...")
@@ -66,11 +69,12 @@ table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 
 print("Grouping soil properties with basis on depth...")
 #TODO: Check the validity of filling the missing values for DEPTH with basis on the average DEPTH value for the entire collection
-table['DEPTH'].fillna((table['DEPTH'].mean()), inplace=True)
+table['DEPTH'] = table['DEPTH'].fillna((table['DEPTH'].mean()))
 minvalue = table['DEPTH'].min() # Default value of 0
 maxvalue = table['DEPTH'].max() # Default value of 200
 print("Depth values ranging from " + repr(minvalue) + " to " + repr(maxvalue) + "...")
-table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[0 , 5, 15, 30, 60, 100, maxvalue + 0.01], right=True, labels=[0, 1, 2, 3, 4, 5])
+#table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[minvalue - 0.1 , 5, 15, 30, 60, 100, maxvalue + 0.01], right=True, labels=False)
+table['DEPTH'] = pandas.qcut(table['DEPTH'], q=4, labels=False)
 
 mapper = DataFrameMapper( [ ('SOILCLASS', None), # Soil classification
                             ('LANDCOV', None), # Land coverage class from GlobCover
@@ -97,9 +101,10 @@ newtable = mapper.fit_transform(table)
 print("Interpolating information for properties with missing values...")
 for col in newtable.columns[newtable.isnull().any()]:
   print("Column " + col + " has missing values...")
-  aux = newtable[['LONWGS84_x','LATWGS84_x','DEPTH.f',col]].values
-  #aux = KNN(k=2).fit_transform(aux)
-  #newtable[col] = aux[:3]
+  aux = newtable[['LONWGS84_x','LATWGS84_x','DEPTH.f',col]].dropna().values  
+#  aux = sklearn.neighbors.KNeighborsRegressor(n_neighbors=5, weights='distance').fit(aux[0:aux.shape[1],0:3],aux[0:aux.shape[1],3])
+#  for index, row in newtable.iterrows():
+#    if np.isnan(row[col]): newtable.loc[index,col] = aux.predict(row[['LONWGS84_x','LATWGS84_x','DEPTH.f']].values.reshape(1, -1))[0]
 newtable = newtable.fillna(newtable.mean())
 
 newtable = newtable.pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
@@ -107,99 +112,103 @@ newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for c
 table = table[['CLEAN_ID','SOILCLASS','LANDCOV']].drop_duplicates()
 table = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
 
+print( table.columns )
 for col in table.columns[table.isnull().any()]:
-  newaux = table[['LONWGS84_x00','LATWGS84_x00','DEPTHf00',col]].values
-  #newtable[col] = KNN(k=2).fit_transform(aux)[:3]
+  print("Column " + col + " has missing values in the depth-aggregated data...")
+  aux = table[['LONWGS84_x0','LATWGS84_x0',col]].dropna().values
+#  aux = sklearn.neighbors.KNeighborsRegressor(n_neighbors=5, weights='distance').fit(aux[0:aux.shape[1],0:2],aux[0:aux.shape[1],2])
+#  for index, row in table.iterrows():
+#    if np.isnan(row[col]): table.loc[index,col] = aux.predict(row[['LONWGS84_x0','LATWGS84_x0']].values.reshape(1, -1))[0]
 table = table.fillna(table.mean())
 
 mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
                             (['LANDCOV'], sklearn.preprocessing.OneHotEncoder()),
-                            (['LONWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
-                            (['LATWGS84_x00'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICMf00'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICMf10'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICMf20'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICMf30'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICMf40'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICMf50'], sklearn.preprocessing.StandardScaler()),
-                            (['LHDICMf00'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICMf10'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICMf20'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICMf30'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICMf40'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICMf50'], sklearn.preprocessing.StandardScaler()),
-                            (['DEPTHf00'], sklearn.preprocessing.StandardScaler()), 
-                            (['DEPTHf10'], sklearn.preprocessing.StandardScaler()), 
-                            (['DEPTHf20'], sklearn.preprocessing.StandardScaler()), 
-                            (['DEPTHf30'], sklearn.preprocessing.StandardScaler()), 
-                            (['DEPTHf40'], sklearn.preprocessing.StandardScaler()), 
-                            (['DEPTHf50'], sklearn.preprocessing.StandardScaler()),
-                            (['UHDICM00'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICM10'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICM20'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICM30'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICM40'], sklearn.preprocessing.StandardScaler()), 
-                            (['UHDICM50'], sklearn.preprocessing.StandardScaler()),
-                            (['LHDICM00'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICM10'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICM20'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICM30'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICM40'], sklearn.preprocessing.StandardScaler()), 
-                            (['LHDICM50'], sklearn.preprocessing.StandardScaler()),
-                            (['CRFVOL00'], sklearn.preprocessing.StandardScaler()), 
-                            (['CRFVOL10'], sklearn.preprocessing.StandardScaler()), 
-                            (['CRFVOL20'], sklearn.preprocessing.StandardScaler()), 
-                            (['CRFVOL30'], sklearn.preprocessing.StandardScaler()), 
-                            (['CRFVOL40'], sklearn.preprocessing.StandardScaler()), 
-                            (['CRFVOL50'], sklearn.preprocessing.StandardScaler()),
-                            (['SNDPPT00'], sklearn.preprocessing.StandardScaler()), 
-                            (['SNDPPT10'], sklearn.preprocessing.StandardScaler()), 
-                            (['SNDPPT20'], sklearn.preprocessing.StandardScaler()), 
-                            (['SNDPPT30'], sklearn.preprocessing.StandardScaler()), 
-                            (['SNDPPT40'], sklearn.preprocessing.StandardScaler()), 
-                            (['SNDPPT50'], sklearn.preprocessing.StandardScaler()),
-                            (['SLTPPT00'], sklearn.preprocessing.StandardScaler()), 
-                            (['SLTPPT10'], sklearn.preprocessing.StandardScaler()), 
-                            (['SLTPPT20'], sklearn.preprocessing.StandardScaler()), 
-                            (['SLTPPT30'], sklearn.preprocessing.StandardScaler()), 
-                            (['SLTPPT40'], sklearn.preprocessing.StandardScaler()), 
-                            (['SLTPPT50'], sklearn.preprocessing.StandardScaler()),
-                            (['CLYPPT00'], sklearn.preprocessing.StandardScaler()), 
-                            (['CLYPPT10'], sklearn.preprocessing.StandardScaler()), 
-                            (['CLYPPT20'], sklearn.preprocessing.StandardScaler()), 
-                            (['CLYPPT30'], sklearn.preprocessing.StandardScaler()), 
-                            (['CLYPPT40'], sklearn.preprocessing.StandardScaler()), 
-                            (['CLYPPT50'], sklearn.preprocessing.StandardScaler()),
-                            (['BLD00'], sklearn.preprocessing.StandardScaler()), 
-                            (['BLD10'], sklearn.preprocessing.StandardScaler()), 
-                            (['BLD20'], sklearn.preprocessing.StandardScaler()), 
-                            (['BLD30'], sklearn.preprocessing.StandardScaler()), 
-                            (['BLD40'], sklearn.preprocessing.StandardScaler()), 
-                            (['BLD50'], sklearn.preprocessing.StandardScaler()),
-                            (['PHIHOX00'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIHOX10'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIHOX20'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIHOX30'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIHOX40'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIHOX50'], sklearn.preprocessing.StandardScaler()),
-                            (['PHIKCL00'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIKCL10'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIKCL20'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIKCL30'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIKCL40'], sklearn.preprocessing.StandardScaler()), 
-                            (['PHIKCL50'], sklearn.preprocessing.StandardScaler()),
-                            (['ORCDRC00'], sklearn.preprocessing.StandardScaler()), 
-                            (['ORCDRC10'], sklearn.preprocessing.StandardScaler()), 
-                            (['ORCDRC20'], sklearn.preprocessing.StandardScaler()), 
-                            (['ORCDRC30'], sklearn.preprocessing.StandardScaler()), 
-                            (['ORCDRC40'], sklearn.preprocessing.StandardScaler()), 
-                            (['ORCDRC50'], sklearn.preprocessing.StandardScaler()),
-                            (['CECSUM00'], sklearn.preprocessing.StandardScaler()), 
-                            (['CECSUM10'], sklearn.preprocessing.StandardScaler()), 
-                            (['CECSUM20'], sklearn.preprocessing.StandardScaler()), 
-                            (['CECSUM30'], sklearn.preprocessing.StandardScaler()), 
-                            (['CECSUM40'], sklearn.preprocessing.StandardScaler()), 
-                            (['CECSUM50'], sklearn.preprocessing.StandardScaler()) ])
+                            (['LONWGS84_x0'], sklearn.preprocessing.StandardScaler()), 
+                            (['LATWGS84_x0'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICMf0'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICMf1'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICMf2'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICMf3'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICMf4'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICMf5'], sklearn.preprocessing.StandardScaler()),
+                            (['LHDICMf0'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICMf1'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICMf2'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICMf3'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICMf4'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICMf5'], sklearn.preprocessing.StandardScaler()),
+                            (['DEPTHf0'], sklearn.preprocessing.StandardScaler()), 
+                            (['DEPTHf1'], sklearn.preprocessing.StandardScaler()), 
+                            (['DEPTHf2'], sklearn.preprocessing.StandardScaler()), 
+                            (['DEPTHf3'], sklearn.preprocessing.StandardScaler()), 
+                            (['DEPTHf4'], sklearn.preprocessing.StandardScaler()), 
+                            (['DEPTHf5'], sklearn.preprocessing.StandardScaler()),
+                            (['UHDICM0'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICM1'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICM2'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICM3'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICM4'], sklearn.preprocessing.StandardScaler()), 
+                            (['UHDICM5'], sklearn.preprocessing.StandardScaler()),
+                            (['LHDICM0'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICM1'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICM2'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICM3'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICM4'], sklearn.preprocessing.StandardScaler()), 
+                            (['LHDICM5'], sklearn.preprocessing.StandardScaler()),
+                            (['CRFVOL0'], sklearn.preprocessing.StandardScaler()), 
+                            (['CRFVOL1'], sklearn.preprocessing.StandardScaler()), 
+                            (['CRFVOL2'], sklearn.preprocessing.StandardScaler()), 
+                            (['CRFVOL3'], sklearn.preprocessing.StandardScaler()), 
+                            (['CRFVOL4'], sklearn.preprocessing.StandardScaler()), 
+                            (['CRFVOL5'], sklearn.preprocessing.StandardScaler()),
+                            (['SNDPPT0'], sklearn.preprocessing.StandardScaler()), 
+                            (['SNDPPT1'], sklearn.preprocessing.StandardScaler()), 
+                            (['SNDPPT2'], sklearn.preprocessing.StandardScaler()), 
+                            (['SNDPPT3'], sklearn.preprocessing.StandardScaler()), 
+                            (['SNDPPT4'], sklearn.preprocessing.StandardScaler()), 
+                            (['SNDPPT5'], sklearn.preprocessing.StandardScaler()),
+                            (['SLTPPT0'], sklearn.preprocessing.StandardScaler()), 
+                            (['SLTPPT1'], sklearn.preprocessing.StandardScaler()), 
+                            (['SLTPPT2'], sklearn.preprocessing.StandardScaler()), 
+                            (['SLTPPT3'], sklearn.preprocessing.StandardScaler()), 
+                            (['SLTPPT4'], sklearn.preprocessing.StandardScaler()), 
+                            (['SLTPPT5'], sklearn.preprocessing.StandardScaler()),
+                            (['CLYPPT0'], sklearn.preprocessing.StandardScaler()), 
+                            (['CLYPPT1'], sklearn.preprocessing.StandardScaler()), 
+                            (['CLYPPT2'], sklearn.preprocessing.StandardScaler()), 
+                            (['CLYPPT3'], sklearn.preprocessing.StandardScaler()), 
+                            (['CLYPPT4'], sklearn.preprocessing.StandardScaler()), 
+                            (['CLYPPT5'], sklearn.preprocessing.StandardScaler()),
+                            (['BLD0'], sklearn.preprocessing.StandardScaler()), 
+                            (['BLD1'], sklearn.preprocessing.StandardScaler()), 
+                            (['BLD2'], sklearn.preprocessing.StandardScaler()), 
+                            (['BLD3'], sklearn.preprocessing.StandardScaler()), 
+                            (['BLD4'], sklearn.preprocessing.StandardScaler()), 
+                            (['BLD5'], sklearn.preprocessing.StandardScaler()),
+                            (['PHIHOX0'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIHOX1'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIHOX2'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIHOX3'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIHOX4'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIHOX5'], sklearn.preprocessing.StandardScaler()),
+                            (['PHIKCL0'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIKCL1'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIKCL2'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIKCL3'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIKCL4'], sklearn.preprocessing.StandardScaler()), 
+                            (['PHIKCL5'], sklearn.preprocessing.StandardScaler()),
+                            (['ORCDRC0'], sklearn.preprocessing.StandardScaler()), 
+                            (['ORCDRC1'], sklearn.preprocessing.StandardScaler()), 
+                            (['ORCDRC2'], sklearn.preprocessing.StandardScaler()), 
+                            (['ORCDRC3'], sklearn.preprocessing.StandardScaler()), 
+                            (['ORCDRC4'], sklearn.preprocessing.StandardScaler()), 
+                            (['ORCDRC5'], sklearn.preprocessing.StandardScaler()),
+                            (['CECSUM0'], sklearn.preprocessing.StandardScaler()), 
+                            (['CECSUM1'], sklearn.preprocessing.StandardScaler()), 
+                            (['CECSUM2'], sklearn.preprocessing.StandardScaler()), 
+                            (['CECSUM3'], sklearn.preprocessing.StandardScaler()), 
+                            (['CECSUM4'], sklearn.preprocessing.StandardScaler()), 
+                            (['CECSUM5'], sklearn.preprocessing.StandardScaler()) ])
 table_y = table_y['SOILCLASS'].value_counts()
 print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
 for i,v in table_y.iteritems(): print("\t" + i + " : " + repr(v))
@@ -209,25 +218,25 @@ print("Training and evaluating classifier through 10-fold cross-validation...")
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=250)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
-aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
+#aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
 print("Overall results...")
 print(aux.mean())
 
-print("Craining classification model on complete dataset...")
+print("Training classification model on complete dataset...")
 train_data = mapper.fit_transform(table)
-classifier.fit(train_data, table.SOILCLASS)
+classifier.fit(train_data[0:100,1:train_data.shape[1]], train_data[0:100,0])
+joblib.dump(classifier, 'classification-model.joblib') 
+
+# Print the feature ranking within the classification model
 importances = classifier.feature_importances_
 std = np.std([tree.feature_importances_ for tree in classifier.estimators_], axis=0)
 indices = np.argsort(importances)[::-1]
-
-# Print the feature ranking within the classification model
 print("Feature ranking:")
-for f in range(X.shape[1]): print("\t %d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
-
+for f in range(train_data.shape[1]): print("\t %d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
 # Plot the feature importances within the classification model
 plt.figure()
 plt.title("Feature importances")
-plt.bar(range(np.min( [ 10, X.shape[1] ] ), importances[indices], color="r", yerr=std[indices], align="center")
-plt.xticks(range(np.min( [ 10, X.shape[1] ] )), indices)
-plt.xlim([-1, np.min( [ 10, X.shape[1] ] )])
+plt.bar(range(np.min( [ 10, train_data.shape[1] ] ) ), importances[indices], color="r", yerr=std[indices], align="center")
+plt.xticks(range(np.min( [ 10, train_data.shape[1] ] ) ), indices)
+plt.xlim([-1, np.min( [ 10, train_data.shape[1] ] )])
 plt.show()
