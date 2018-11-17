@@ -67,9 +67,10 @@ table = table.merge(table_y, how="inner", left_on='CLEAN_ID', right_on='LOC_ID')
 print("Grouping soil properties with basis on depth...")
 #TODO: Check the validity of filling the missing values for DEPTH with basis on the average DEPTH value for the entire collection
 table['DEPTH'].fillna((table['DEPTH'].mean()), inplace=True)
-minvalue = table['DEPTH'].min() - 0.1 # Default value of 0
-maxvalue = table['DEPTH'].max() + 0.1 # Default value of 200
-table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[minvalue, 5, 15, 30, 60, 100, maxvalue], right=True, labels=[0, 1, 2, 3, 4, 5, 6])
+minvalue = table['DEPTH'].min() # Default value of 0
+maxvalue = table['DEPTH'].max() # Default value of 200
+print("Depth values ranging from " + repr(minvalue) + " to " + repr(maxvalue) + "...")
+table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[0 , 5, 15, 30, 60, 100, maxvalue + 0.01], right=True, labels=[0, 1, 2, 3, 4, 5])
 
 mapper = DataFrameMapper( [ ('SOILCLASS', None), # Soil classification
                             ('LANDCOV', None), # Land coverage class from GlobCover
@@ -95,8 +96,10 @@ newtable = mapper.fit_transform(table)
 
 print("Interpolating information for properties with missing values...")
 for col in newtable.columns[newtable.isnull().any()]:
+  print("Column " + col + " has missing values...")
   aux = newtable[['LONWGS84_x','LATWGS84_x','DEPTH.f',col]].values
-  newtable[col] = KNN(k=2).fit_transform(aux)[:3]
+  #aux = KNN(k=2).fit_transform(aux)
+  #newtable[col] = aux[:3]
 newtable = newtable.fillna(newtable.mean())
 
 newtable = newtable.pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
@@ -105,7 +108,7 @@ table = table[['CLEAN_ID','SOILCLASS','LANDCOV']].drop_duplicates()
 table = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
 
 for col in table.columns[table.isnull().any()]:
-  newaux = table[['LONWGS84_x00','LATWGS84_x00','DEPTHf00',col]].dropna().values
+  newaux = table[['LONWGS84_x00','LATWGS84_x00','DEPTHf00',col]].values
   #newtable[col] = KNN(k=2).fit_transform(aux)[:3]
 table = table.fillna(table.mean())
 
@@ -201,11 +204,30 @@ table_y = table_y['SOILCLASS'].value_counts()
 print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
 for i,v in table_y.iteritems(): print("\t" + i + " : " + repr(v))
 print("Training and evaluating classifier through 10-fold cross-validation...")
-classifier = XGBClassifier(n_estimators=250)
-classifier = CatBoostClassifier()
+#classifier = XGBClassifier(n_estimators=250)
+#classifier = CatBoostClassifier()
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=250)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
 aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
 print("Overall results...")
 print(aux.mean())
+
+print("Craining classification model on complete dataset...")
+train_data = mapper.fit_transform(table)
+classifier.fit(train_data, table.SOILCLASS)
+importances = classifier.feature_importances_
+std = np.std([tree.feature_importances_ for tree in classifier.estimators_], axis=0)
+indices = np.argsort(importances)[::-1]
+
+# Print the feature ranking within the classification model
+print("Feature ranking:")
+for f in range(X.shape[1]): print("\t %d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
+
+# Plot the feature importances within the classification model
+plt.figure()
+plt.title("Feature importances")
+plt.bar(range(np.min( [ 10, X.shape[1] ] ), importances[indices], color="r", yerr=std[indices], align="center")
+plt.xticks(range(np.min( [ 10, X.shape[1] ] )), indices)
+plt.xlim([-1, np.min( [ 10, X.shape[1] ] )])
+plt.show()
