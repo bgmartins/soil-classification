@@ -27,6 +27,7 @@ def get_gcforest_config(n_classes=30):
     config["cascade"] = ca_config
     return config
 
+test_results = None
 def classification_report_with_accuracy_score(y_true, y_pred):
     print("==== REPORT OF RESULTS FOR ONE OF THE DATA FOLDS  ====")
     print(classification_report(y_true, y_pred))
@@ -48,19 +49,26 @@ def classification_report_with_accuracy_score(y_true, y_pred):
 print("Reading information on soil classes...")
 table_y = pandas.read_csv("TAXNWRB_selection.csv", header=0)
 table_y['SOILCLASS'] = table_y['TAXNWRB.f'].apply(lambda x: x.split(" ")[1])
+soil_class_encoder = sklearn.preprocessing.LabelEncoder()
 
 print("Reading information on land coverage...")
 table_y["LANDCOV"] = "210"
 NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
-added = 0
+raster_aux = dict()
 table = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
+cnt = 0
 for index, row in table_y.iterrows():
     try: 
       val = table.map_pixel(row['LONWGS84'], row['LATWGS84'])
-      added += 1
+      table_y.set_value(index,'LANDCOV',str(val))
+      cnt += 1
     except: val = None
-    table_y.set_value(index,'LANDCOV',str(val))
-print("Added land coverage information to " + repr(added) + " instances out of " + repr(len(table_y)) + " sample locations...")
+    if not(val is None):
+      l = table.map_pixel_location(row['LONWGS84'], row['LATWGS84'])
+      raster_aux[(l[0],l[1])] = table_y.loc[index,'LANDCOV']
+land_coverage_encoder = sklearn.preprocessing.OneHotEncoder()
+print("Added land coverage information to " + repr(cnt) + " instances out of " + repr(len(table_y)) + " sample locations...")
+print("Land coverage information is available for " + repr(len(raster_aux)) + " unique raster cells...")
 
 print("Reading information on soil properties...")
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84', 'LONWGS84', 'DEPTH', 'UHDICM.f', 'LHDICM.f', 'DEPTH.f', 'UHDICM', 'LHDICM', 'CRFVOL', 'SNDPPT', 'SLTPPT', 'CLYPPT', 'BLD', 'PHIHOX', 'PHIKCL', 'ORCDRC', 'CECSUM', 'PHICAL'])}, low_memory=False)
@@ -74,7 +82,7 @@ minvalue = table['DEPTH'].min() # Default value of 0
 maxvalue = table['DEPTH'].max() # Default value of 200
 print("Depth values ranging from " + repr(minvalue) + " to " + repr(maxvalue) + "...")
 #table['DEPTH'] = pandas.cut(table['DEPTH'], bins=[minvalue - 0.1 , 5, 15, 30, 60, 100, maxvalue + 0.01], right=True, labels=False)
-table['DEPTH'] = pandas.qcut(table['DEPTH'], q=4, labels=False)
+table['DEPTH'] = pandas.qcut(table['DEPTH.f'], q=6, labels=False)
 
 mapper = DataFrameMapper( [ ('SOILCLASS', None), # Soil classification
                             ('LANDCOV', None), # Land coverage class from GlobCover
@@ -98,13 +106,13 @@ mapper = DataFrameMapper( [ ('SOILCLASS', None), # Soil classification
                             ('CECSUM', None) ], df_out=True) # 
 newtable = mapper.fit_transform(table)
 
-print("Interpolating information for properties with missing values...")
+print("Interpolating information for properties with missing values over dataset with " + repr(newtable.shape[0]) + " instances...")
 for col in newtable.columns[newtable.isnull().any()]:
-  print("Column " + col + " has missing values...")
-  aux = newtable[['LONWGS84_x','LATWGS84_x','DEPTH.f',col]].dropna().values  
-#  aux = sklearn.neighbors.KNeighborsRegressor(n_neighbors=5, weights='distance').fit(aux[0:aux.shape[1],0:3],aux[0:aux.shape[1],3])
-#  for index, row in newtable.iterrows():
-#    if np.isnan(row[col]): newtable.loc[index,col] = aux.predict(row[['LONWGS84_x','LATWGS84_x','DEPTH.f']].values.reshape(1, -1))[0]
+  print("Column " + col + " has " + repr(table[col].isnull().sum()) + " missing values...")
+  aux = newtable[['LONWGS84_x','LATWGS84_x','DEPTH.f',col]].dropna().values
+  aux = sklearn.neighbors.KNeighborsRegressor(n_neighbors=3, weights='distance').fit(aux[0:aux.shape[0],0:3],aux[0:aux.shape[0],3])
+  for index, row in newtable.iterrows():
+    if np.isnan(row[col]): newtable.loc[index,col] = aux.predict(row[['LONWGS84_x','LATWGS84_x','DEPTH.f']].values.reshape(1, -1))[0]
 newtable = newtable.fillna(newtable.mean())
 
 newtable = newtable.pivot_table(columns=['DEPTH'],index=['CLEAN_ID','DEPTH'])
@@ -112,19 +120,18 @@ newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for c
 table = table[['CLEAN_ID','SOILCLASS','LANDCOV']].drop_duplicates()
 table = newtable.merge(table, how="inner", left_on='CLEAN_ID', right_on='CLEAN_ID')
 
-print( table.columns )
 for col in table.columns[table.isnull().any()]:
-  print("Column " + col + " has missing values in the depth-aggregated data...")
+  print("Column " + col + " has " + repr(table[col].isnull().sum()) + " missing values in the " + repr(table.shape[0]) + " depth-aggregated records...")
   aux = table[['LONWGS84_x0','LATWGS84_x0',col]].dropna().values
-#  aux = sklearn.neighbors.KNeighborsRegressor(n_neighbors=5, weights='distance').fit(aux[0:aux.shape[1],0:2],aux[0:aux.shape[1],2])
+#  aux = sklearn.neighbors.KNeighborsRegressor(n_neighbors=3, weights='distance').fit(aux[0:aux.shape[0],0:2],aux[0:aux.shape[0],2])
 #  for index, row in table.iterrows():
 #    if np.isnan(row[col]): table.loc[index,col] = aux.predict(row[['LONWGS84_x0','LATWGS84_x0']].values.reshape(1, -1))[0]
 table = table.fillna(table.mean())
 
-mapper = DataFrameMapper( [ ('SOILCLASS', sklearn.preprocessing.LabelEncoder()),
-                            (['LANDCOV'], sklearn.preprocessing.OneHotEncoder()),
-                            (['LONWGS84_x0'], sklearn.preprocessing.StandardScaler()), 
-                            (['LATWGS84_x0'], sklearn.preprocessing.StandardScaler()), 
+mapper = DataFrameMapper( [ ('SOILCLASS', soil_class_encoder),
+                            (['LANDCOV'], land_coverage_encoder),
+                            (['LONWGS84_x0'], sklearn.preprocessing.StandardScaler()),
+                            (['LATWGS84_x0'], sklearn.preprocessing.StandardScaler()),
                             (['UHDICMf0'], sklearn.preprocessing.StandardScaler()), 
                             (['UHDICMf1'], sklearn.preprocessing.StandardScaler()), 
                             (['UHDICMf2'], sklearn.preprocessing.StandardScaler()), 
@@ -218,25 +225,40 @@ print("Training and evaluating classifier through 10-fold cross-validation...")
 classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=250)
 #classifier = GCForest(get_gcforest_config())
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
-#aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
+aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
 print("Overall results...")
 print(aux.mean())
 
 print("Training classification model on complete dataset...")
 train_data = mapper.fit_transform(table)
-classifier.fit(train_data[0:100,1:train_data.shape[1]], train_data[0:100,0])
+classifier.fit(train_data[0:train_data.shape[0],1:train_data.shape[1]], train_data[0:train_data.shape[0],0])
 joblib.dump(classifier, 'classification-model.joblib') 
 
-# Print the feature ranking within the classification model
+print("Infering the feature ranking within the classification model")
 importances = classifier.feature_importances_
 std = np.std([tree.feature_importances_ for tree in classifier.estimators_], axis=0)
 indices = np.argsort(importances)[::-1]
-print("Feature ranking:")
-for f in range(train_data.shape[1]): print("\t %d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
+for f in range(train_data.shape[1] - 1): print("\t %d. feature %d (%s) (%f)" % (f + 1, indices[f], table.columns.values[indices[f] + 1], importances[indices[f]]))
 # Plot the feature importances within the classification model
 plt.figure()
 plt.title("Feature importances")
-plt.bar(range(np.min( [ 10, train_data.shape[1] ] ) ), importances[indices], color="r", yerr=std[indices], align="center")
-plt.xticks(range(np.min( [ 10, train_data.shape[1] ] ) ), indices)
-plt.xlim([-1, np.min( [ 10, train_data.shape[1] ] )])
+plt.bar(range(np.min( [ 10, train_data.shape[1] - 1 ] ) ), importances[indices], color="r", yerr=std[indices], align="center")
+plt.xticks(range(np.min( [ 10, train_data.shape[1] - 1] ) ), indices)
+plt.xlim([-1, np.min( [ 10, train_data.shape[1] - 1] )])
 plt.show()
+
+print("Generating a raster with the soil map...")
+NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
+raster = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
+for x in range(xsize):
+  for y in range(ysize):
+    if raster[x,y] == 210: 
+      raster[x,y] = -1
+      continue
+    if (x,y) in raster_aux: raster[x,y] = land_coverage_encoder.transform( raster_aux[(x,y)] )
+    else:
+      land_cover = land_coverage_encoder.transform(raster[x,y])
+      lon, lat = raster.map_pixel_inv(x, y, raster.x_cell_size, raster.y_cell_size, raster.xmin, raster.ymax)
+      soil_class = -2
+      raster[x,y] = soil_class
+raster.to_tiff('soilmap.tif')
