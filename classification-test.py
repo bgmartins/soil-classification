@@ -9,26 +9,9 @@ import sklearn.preprocessing, sklearn.ensemble, sklearn.pipeline, sklearn.metric
 import inflect
 from joblib import Parallel, delayed
 from xgboost import XGBClassifier
-from catboost import CatBoostClassifier
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from sklearn.externals import joblib
-#from gcforest.gcforest import GCForest
-
-def get_gcforest_config(n_classes=30):
-    config = {}
-    ca_config = {}
-    ca_config["random_state"] = 0
-    ca_config["max_layers"] = 100
-    ca_config["early_stopping_rounds"] = 3
-    ca_config["n_classes"] = n_classes
-    ca_config["estimators"] = []
-    ca_config["estimators"].append({"n_folds": 5, "type": "XGBClassifier", "n_estimators": 250, "max_depth": 5, "objective": "multi:softprob", "silent": True, "nthread": -1, "learning_rate": 0.1} )
-    ca_config["estimators"].append({"n_folds": 5, "type": "RandomForestClassifier", "n_estimators": 250, "max_depth": None, "n_jobs": -1})
-    ca_config["estimators"].append({"n_folds": 5, "type": "ExtraTreesClassifier", "n_estimators": 250, "max_depth": None, "n_jobs": -1})
-    ca_config["estimators"].append({"n_folds": 5, "type": "LogisticRegression"})
-    config["cascade"] = ca_config
-    return config
 
 test_results = [ ]
 test_results_y_true = list()
@@ -92,7 +75,7 @@ cnt = 0
 for index, row in table_y.iterrows():
     try: 
       val = table.map_pixel(row['LONWGS84'], row['LATWGS84'])
-      table_y.loc[index,'ELEVATION'] = val
+      table_y.loc[index,'ELEVATION'] = float(val)
       cnt += 1
     except: table_y.loc[index,'ELEVATION'] = 0
 print("Added elevation information to " + repr(cnt) + " instances out of " + repr(len(table_y)) + " data instances...")
@@ -100,6 +83,7 @@ print("Added elevation information to " + repr(cnt) + " instances out of " + rep
 print("Computing information on terrain slope...")
 for attr in ['slope_percentage' , 'aspect' , 'profile_curvature' ]:
   table_y[attr.upper()] = 0.0
+  table = None
   table = rd.TerrainAttribute(rd.LoadGDAL("./globcover/digital-elevation-model.tif"), attrib=attr)
   rd.SaveGDAL("./slope.tif",table)
   table = None
@@ -118,6 +102,7 @@ for attr in ['slope_percentage' , 'aspect' , 'profile_curvature' ]:
 print("Reading information on soil properties...")
 table = pandas.read_csv("PROPS_selection.csv", header=0, dtype={col: np.float32 for col in list(['LATWGS84', 'LONWGS84', 'DEPTH', 'UHDICM.f', 'LHDICM.f', 'DEPTH.f', 'UHDICM', 'LHDICM', 'CRFVOL', 'SNDPPT', 'SLTPPT', 'CLYPPT', 'BLD', 'PHIHOX', 'PHIKCL', 'ORCDRC', 'CECSUM', 'PHICAL'])}, low_memory=False)
 table = table.assign(CLEAN_ID = [ str(x).replace("ID_","") for x in table.LOC_ID ] )
+tablefull = table.drop_duplicates()
 table = table.merge(table_y, how="inner", left_on=['CLEAN_ID'], right_on=['LOC_ID']).drop_duplicates()
 
 print("Grouping soil properties with basis on depth for " + repr(len(table)) + " instances...")
@@ -161,19 +146,37 @@ newtable = newtable.pivot_table(columns=['DEPTH'],index=['CLEAN_ID','TIMESTRR','
 newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
 table = newtable.merge(table, how="inner", left_on=['CLEAN_ID','TIMESTRR','LONWGS84_x','LATWGS84_x'], right_on=['CLEAN_ID','TIMESTRR','LONWGS84_x','LATWGS84_x'])
 
-newtable = table.drop_duplicates()
+tablefull['DEPTH'] = tablefull['DEPTH'].fillna(tablefull['DEPTH.f'])
+tablefull['DEPTH'] = tablefull['DEPTH'].fillna((tablefull['DEPTH'].mean()))
+tablefull['DEPTH'] = pandas.qcut(tablefull['DEPTH.f'], q=3, labels=False)
+tablefull['LONWGS84_x'] = tablefull['LONWGS84']
+tablefull['LATWGS84_x'] = tablefull['LATWGS84']
+tablefull['SOILCLASS'] = 0
+tablefull['LANDCOV'] = str("210_")
+tablefull['ELEVATION'] = 0.0
+tablefull['SLOPE_PERCENTAGE'] = 0.0
+tablefull['ASPECT'] = 0.0
+tablefull['PROFILE_CURVATURE'] = 0.0
+newtable = mapper.transform(tablefull)
+tablefull = newtable[['CLEAN_ID','TIMESTRR','LONWGS84_x','LATWGS84_x']].drop_duplicates()
+newtable = newtable.pivot_table(columns=['DEPTH'],index=['CLEAN_ID','TIMESTRR','LONWGS84_x','LATWGS84_x'])
+newtable.columns = [ re.compile('[^a-zA-Z0-9_]').sub('',''.join(str(col))) for col in newtable.columns.values ]
+newtable = newtable.merge(tablefull, how="inner", left_on=['CLEAN_ID','TIMESTRR','LONWGS84_x','LATWGS84_x'], right_on=['CLEAN_ID','TIMESTRR','LONWGS84_x','LATWGS84_x'])
+
+newtable = newtable.drop_duplicates()
+table = table.drop_duplicates()
 for col in table.columns[table.isnull().any()]:
   if col == 'TIMESTRR' : continue
   print("Column " + col + " has " + repr(table[col].isnull().sum()) + " missing values in the " + repr(len(table)) + " depth-aggregated records...")
-  aux = table[['LONWGS84_x','LATWGS84_x',col]].dropna().values
+  aux = newtable[['LONWGS84_x','LATWGS84_x',re.sub(r"([012])$", "\g<1>0", col)]].dropna().values
   aux = sklearn.neighbors.KNeighborsRegressor(n_neighbors=3, weights='distance').fit(aux[0:aux.shape[0],0:2],aux[0:aux.shape[0],2])
   for index, row in table.iterrows():
     if np.isnan(row[col]):
       res = [ aux.predict(row[['LONWGS84_x','LATWGS84_x']].values.reshape(1, -1))[0] ]
       for i in [ '0' , '1' , '2' ]:
         if not(col.endswith(i)) and not(np.isnan(row[col[:-1] + i])): res.append(row[col[:-1] + i])
-      newtable.at[index,col] = np.mean(res)
-table = newtable.fillna(newtable.mean())
+      table.at[index,col] = np.mean(res)
+table = table.fillna(table.mean())
 newtable = None
 
 mapper = DataFrameMapper( [ ('SOILCLASS', soil_class_encoder),
@@ -234,10 +237,8 @@ print("Dataset features a total of " + repr(len(table_y)) + " soil classes.")
 for i,v in table_y.iteritems(): print("\t" + i + " : " + repr(v))
 
 print("Training and evaluating classifier through 10-fold cross-validation...")
-#classifier = XGBClassifier(n_estimators=200)
-#classifier = CatBoostClassifier()
-classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=200, n_jobs=5)
-#classifier = GCForest(get_gcforest_config())
+classifier = XGBClassifier(n_estimators=100, n_jobs=5)
+classifier = sklearn.ensemble.RandomForestClassifier(n_estimators=1000, n_jobs=5)
 pipe = sklearn.pipeline.Pipeline( [ ('featurize', mapper), ('classify', classifier)] )
 aux = cross_val_score(pipe, X=table, y=table.SOILCLASS, scoring=make_scorer(classification_report_with_accuracy_score), cv=10)
 print("Overall results...")
@@ -250,10 +251,17 @@ classifier.fit(train_data[0:train_data.shape[0],1:train_data.shape[1]], train_da
 joblib.dump(classifier, 'classification-model.joblib') 
 
 print("Infering the feature ranking within the classification model...")
-importances = classifier.feature_importances_
-std = np.std([tree.feature_importances_ for tree in classifier.estimators_], axis=0)
+if isinstance(classifier,XGBClassifier): 
+  importances = classifier.get_booster().get_score(importance_type='weight') 
+  importances = dict( [ (int(k.replace('f', '')), v) for k, v in importances.items() ] )
+  importances = np.array( [ importances[k] for k in sorted(importances.keys(), reverse=False) ] )
+  std = 0.0
+else: 
+  importances = classifier.feature_importances_
+  std = np.std([tree.feature_importances_ for tree in classifier.estimators_], axis=0)
 indices = np.argsort(importances)[::-1]
-for f in range(train_data.shape[1] - 1): 
+
+for f in range(len(indices)):
   aux = indices[f] + 1
   if aux >= len(mapper.features) : aux = len(mapper.features) - 1
   print("\t %d. feature %d (%s) (%f)" % (f + 1, indices[f], mapper.features[aux][0][0], importances[indices[f]]))
@@ -268,8 +276,10 @@ try:
 except: print("Error when plotting the feature importances...")
 
 print("Generating a raster with the soil map...")
-NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
-raster = gr.from_file("./globcover/GLOBCOVER_L4_200901_200912_V2.3.tif")
+train_data = None
+table = None
+NDV, xsize, ysize, GeoT, Projection, DataType = gr.get_geo_info("./globcover/digital-elevation-model.tif")
+raster = gr.from_file("./globcover/digital-elevation-model.tif")
 def process_data( x ):
   for y in range(ysize - 1):    
     if raster.raster[x,y] == 210: 
@@ -282,7 +292,7 @@ def process_data( x ):
     else:
       aux = str(int(raster.raster[x,y])) + "_"
       try: land_cover = land_coverage_encoder.transform([aux])[0]
-      except: land_cover = land_coverage_encoder.transform(["210_"])[0] 
+      except: land_cover = land_coverage_encoder.transform(["210_"])[0]
       lon, lat = gr.map_pixel_inv(x, y, raster.x_cell_size, raster.y_cell_size, raster.xmin, raster.ymax)
       soil_class = -2 #TODO: Add classification result
       raster.raster[x,y] = soil_class
