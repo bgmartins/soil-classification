@@ -10,7 +10,6 @@ SELECT COUNT(*)
     OR cfao_major_group IS NOt NULL;
   
 -- Profiles   
-DROP VIEW v_tmp;
 CREATE VIEW v_tmp AS  
 SELECT  profile_id, 
 		dataset_id, 
@@ -81,10 +80,59 @@ SELECT  profile_id,
 		wv0200_value_avg,
 		wv0033_value_avg,
 		wv0500_value_avg,
-		wv0006_value_avg
+		wv0006_value_avg,
+		bdfi33_license,
+		bdfiad_license,
+		bdfifm_license,
+		bdfins_license,
+		bdfiod_license,
+		bdws33_license,
+		bdwsad_license,
+		bdwsfm_license,
+		bdwsns_license,
+		bdwsod_license,
+		tceq_license,
+		cecph7_license,
+		cecph8_license,
+		clay_license,
+		cfgr_license,
+		cfvo_license,
+		ecec_license,
+		elco1x_license,
+		elcons_license,
+		elcosp_license,
+		orgc_license,
+		phca_license,
+		phaq_license,
+		phkc_license,
+		phnf_license,
+		phpbyi_license,
+		phpmh3_license,
+		phpols_license,
+		phprtn_license,
+		phptot_license,
+		phpwsl_license,
+		sand_license,
+		silt_license,
+		totc_license,
+		nitkjd_license,
+		wg0100_license,
+		wg0010_license,
+		wg1500_license,
+		wg0200_license,
+		wg0033_license,
+		wg0500_license,
+		wg0006_license,
+		wv0100_license,
+		wv0010_license,
+		wv1500_license,
+		wv0200_license,
+		wv0033_license,
+		wv0500_license,
+		wv0006_license
   FROM  sg250m.wosis_201901_layers
  WHERE  profile_id IN (SELECT profile_id 
-                         FROM sg250m.wosis_201901_profiles); 
+                         FROM sg250m.v_tmp); 
 
 SELECT * FROM sg250m.v_tmp;
 
@@ -116,5 +164,7 @@ SELECT  DISTINCT(cstx_order_name)
 SELECT DISTINCT(cstx_order_name)
   FROM wosis_201901_profiles;
   
+-- Clean up
+DROP VIEW v_tmp;
  
  
