@@ -3,6 +3,8 @@ WoSIS
 
 The datasets used in this study are a selection from the [Word Soil Information System](https://www.isric.org/explore/wosis) (WoSIS). The selection corresponds to all profiles in WoSIS classified either according to the [World Reference Base](http://www.fao.org/soils-portal/soil-survey/soil-classification/world-reference-base/en/) (WRB) or the [Soil Taxonomy](https://www.nrcs.usda.gov/wps/portal/nrcs/main/soils/survey/class/taxonomy/) of the United States Department of Agriculture.
 
+WoSIS is an open database, however restrictions may apply to data use. Please verify the licence of each data entry by consulting the respective field with the `_license` suffix.
+
 Datasets
 ========
 
