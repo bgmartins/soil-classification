@@ -1,0 +1,54 @@
+﻿"code","type","attribute","unit","profiles","layers","description"
+BDFI33,Horizon,Bulk density fine earth - 33 kPa,kg/dm³,14602,76575,"Bulk density of the fine earth fraction*, equilibrated at 33 kPa"
+BDFIAD,Horizon,Bulk density fine earth - air dry,kg/dm³,1618,7498,"Bulk density of the fine earth fraction*, air dried"
+BDFIFM,Horizon,Bulk density fine earth - field moist,kg/dm³,4504,10872,"Bulk density of the fine earth fraction*, field moist"
+BDFINS,Horizon,Bulk density fine earth - moisture condition not specified,kg/dm³,15841,76564,"Bulk density of the fine earth fraction*, moisture condition not specified"
+BDFIOD,Horizon,Bulk density fine earth - oven dry,kg/dm³,16657,83374,"Bulk density of the fine earth fraction*, oven dry"
+BDWS33,Horizon,Bulk density whole soil - 33 kPa,kg/dm³,25765,151656,"Bulk density of the whole soil including coarse fragments, equilibrated at 33 kPa"
+BDWSAD,Horizon,Bulk density whole soil - air dry,kg/dm³,0,0,"Bulk density of the whole soil including coarse fragments, air dried"
+BDWSFM,Horizon,Bulk density whole soil - field moist,kg/dm³,0,0,"Bulk density of the whole soil including coarse fragments, field moist"
+BDWSNS,Horizon,Bulk density whole soil - moisture condition not specified,kg/dm³,16207,83769,"Bulk density of the whole soil including coarse fragments, moisture condition not specified"
+BDWSOD,Horizon,Bulk density whole soil - oven dry,kg/dm³,12877,65606,"Bulk density of the whole soil including coarse fragments, oven dry"
+CECPH7,Horizon,Cation exchange capacity - buffered at pH7,cmol(c)/kg,46990,264075,"Capacity of the fine earth fraction* to hold exchangeable cations, estimated by buffering the soil at 'pH7'"
+CECPH8,Horizon,Cation exchange capacity - buffered at pH8,cmol(c)/kg,6245,22752,"Capacity of the fine earth fraction* to hold exchangeable cations, estimated by buffering the soil at 'pH8'"
+CFAO,Site,Soil classification FAO,unitless,21874,0,"Classification of the soil profile according to specified edition (year) of the FAO-Unesco Legend, up to soil unit level when available"
+CFGR,Horizon,Coarse fragments gravimetric total,g/100g,35382,184596,Gravimetric content of coarse fragments* in the whole soil
+CFVO,Horizon,Coarse fragments volumetric total,cm³/100cm³,36678,195089,Volumetric content of coarse fragments* in the whole soil
+CLAY,Horizon,Clay total,g/100g,104964,498767,Gravimetric content of < X mm soil material in the fine earth fraction* (e.g. X = 0.002 mm as specified in the analytical method description)
+CSTX,Site,Soil classification Soil taxonomy,unitless,25164,0,"Classification of the soil profile according to specified edition (year) of USDA Soil Taxonomy, up to subgroup level when available"
+CWRB,Site,Soil classification WRB,unitless,24908,0,"Classification of the soil profile according to specified edition (year) of the World Reference Base for Soil Resources (WRB), up to qualifier level when available"
+DSDS,Site,Depth of soil - sampled,cm,146608,0,Maximum depth of soil described and sampled (calculated)
+ECEC,Horizon,Effective cation exchange capacity,cmol(c)/kg,23605,104604,"Capacity of the fine earth fraction* to hold exchangeable cations at the pH of the soil (ECEC). Conventionally approximated by summation of exchangeable bases (Ca2+, Mg2+, K+, and Na+) plus 1 N KCl exchangeable acidity (Al3+ and H+) in acidic soils"
+ELCO1X,Horizon,Electrical conductivity - ratio 1:x,dS/m,43163,166689,"Ability of a 1:x soil water extract to conduct electrical current (ECx, with x= 1 to 10)"
+ELCONS,Horizon,Electrical conductivity - ratio not specified,dS/m,4875,16835,"Ability of a soil water extract to conduct electrical current, soil water ratio not specified"
+ELCOSP,Horizon,Electrical conductivity - saturated paste,dS/m,18761,71802,Ability of a water saturated soil paste to conduct electrical current (ECe)
+NITKJD,Horizon,Total nitrogen (N),g/kg,55836,196956,"The sum of total Kjeldahl nitrogen (ammonia, organic and reduced nitrogen) and nitrate-nitrite"
+ORGC,Horizon,Organic carbon,g/kg,96917,421603,Gravimetric content of organic carbon in the fine earth fraction*
+PHAQ,Horizon,pH H2O,unitless,105404,513875,"A measure of the acidity or alkalinity in soils, defined as the negative logarithm (base 10) of the activity of hydronium ions (H+) in water"
+PHCA,Horizon,pH CaCl2,unitless,61494,304128,"A measure of the acidity or alkalinity in soils, defined as the negative logarithm (base 10) of the activity of hydronium ions (H+) in a CaCl2 solution, as specified in the analytical method descriptions"
+PHKC,Horizon,pH KCl,unitless,22528,98522,"A measure of the acidity or alkalinity in soils, defined as the negative logarithm (base 10) of the activity of hydronium ions (H+) in a KCl solution, as specified in the analytical method descriptions"
+PHNF,Horizon,pH NaF,unitless,4868,24730,"A measure of the acidity or alkalinity in soils, defined as the negative logarithm (base 10) of the activity of hydronium ions (H+) in a NaF solution, as specified in the analytical method descriptions"
+PHPBYI,Horizon,Phosphorus (P) - Bray I,mg/kg,10587,39501,"Measured according to the Bray-I method, a combination of HCl and NH4 F to remove easily acid soluble P forms, largely Al- and Fe-phosphates (for acid soils)"
+PHPMH3,Horizon,Phosphorus (P) - Mehlich 3,mg/kg,1429,7015,"Measured according to the Mehlich-3 extractant, a combination of acids (acetic [HOAc] and nitric [HNO3]), salts (ammonium fluoride [NH4F] and ammonium nitrate [NH4 NO3]), and the chelating agent ethylenediaminetetraacetic acid (EDTA); considered suitable for removing P and other elements in acid and neutral soils"
+PHPOLS,Horizon,Phosphorus (P) - Olsen,mg/kg,1731,7091,"Measured according to the P-Olsen method:  0.5 M sodium bicarbonate (NaHCO3) solution at a pH of 8.5 to extract P from calcareous, alkaline, and neutral soils"
+PHPRTN,Horizon,Phosphorus (P) - retention,mg/kg,4468,22904,Retention measured according to the New Zealand method
+PHPTOT,Horizon,Phosphorus (P) - total,mg/kg,2698,10212,Determined with a very strong acid (aqua regia and sulfuric acid/nitric acid)
+PHPWSL,Horizon,Phosphorus (P) - water soluble,mg/kg,281,1219,Measured in 1:x soil:water solution (mainly determines P in dissolved forms)
+SAND,Horizon,Sand total,g/100g,83692,418439,Larger than Y mm fraction of the fine earth fraction*; Y as specified in the analytical method description (e.g. Y = 0.05 mm to 2 mm*)
+SILT,Horizon,Silt total,g/100g,103331,493544,X to Y mm fraction of the fine earth fraction*; Y as specified in the analytical method description (e.g. Y = 0.05 mm)
+TCEQ,Horizon,Calcium carbonate equivalent total,g/kg,32196,131972,The content of carbonate in a liming material or calcareous soil calculated as if all of the carbonate is in the form of CaCO3 (in the fine earth fraction*); also known as inorganic carbon
+TOTC,Horizon,Total carbon (C),g/kg,13952,69557,Gravimetric content of organic carbon and inorganic carbon in the fine earth fraction*
+WG0006,Horizon,Water retention gravimetric - 6 kPa,g/100g,854,4247,"Soil moisture content by weight, at tension 6 kPa (pF 1.8)"
+WG0010,Horizon,Water retention gravimetric - 10 kPa,g/100g,2937,13396,"Soil moisture content by weight, at tension 10 kPa (pF 2.0)"
+WG0033,Horizon,Water retention gravimetric - 33 kPa,g/100g,20432,93317,"Soil moisture content by weight, at tension 33 kPa (pF 2.5)"
+WG0100,Horizon,Water retention gravimetric - 100 kPa,g/100g,686,3739,"Soil moisture content by weight, at tension 100 kPa (pF 3.0)"
+WG0200,Horizon,Water retention gravimetric - 200 kPa,g/100g,4279,27598,"Soil moisture content by weight, at tension 200 kPa (pF 3.3)"
+WG0500,Horizon,Water retention gravimetric - 500 kPa,g/100g,336,1703,"Soil moisture content by weight, at tension 500 kPa (pF 3.7)"
+WG1500,Horizon,Water retention gravimetric - 1500 kPa,g/100g,33858,183890,"Soil moisture content by weight, at tension 1500 kPa (pF 4.2)"
+WV0006,Horizon,Water retention volumetric - 6 kPa,cm³/100cm³,7,15,"Soil moisture content by volume, at tension 6 kPa (pF 1.8)"
+WV0010,Horizon,Water retention volumetric - 10 kPa,cm³/100cm³,804,2878,"Soil moisture content by volume, at tension 10 kPa (pF 2.0)"
+WV0033,Horizon,Water retention volumetric - 33 kPa,cm³/100cm³,3577,13500,"Soil moisture content by volume, at tension 33 kPa (pF 2.5)"
+WV0100,Horizon,Water retention volumetric - 100 kPa,cm³/100cm³,491,1392,"Soil moisture content by volume, at tension 100 kPa (pF 3.0)"
+WV0200,Horizon,Water retention volumetric - 200 kPa,cm³/100cm³,3,9,"Soil moisture content by volume, at tension 200 kPa (pF 3.3)"
+WV0500,Horizon,Water retention volumetric - 500 kPa,cm³/100cm³,705,1771,"Soil moisture content by volume, at tension 500 kPa (pF 3.7)"
+WV1500,Horizon,Water retention volumetric - 1500 kPa,cm³/100cm³,3993,14368,"Soil moisture content by volume, at tension 1500 kPa (pF 4.2)"
