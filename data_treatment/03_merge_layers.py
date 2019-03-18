@@ -9,16 +9,12 @@ import time
 # Receives an array of layers of a profile and returns a single row
 def merge_profile(layers):
     final_row = pd.DataFrame()
-    for depth in range(0, max_depth+1, layer_depth):
-        # Find the layer for current depth
-        row = layers.loc[(layers['lower_depth'] > depth)].head(1)
-
-        # Default to the last layer
-        if row.empty:
-            row = layers.iloc[[-1]]
+    for i in range(0, n_layers):
+        # Find the current layer
+        row = layers.iloc[[i]] if len(layers) > i else layers.tail(1)
 
         # Rename the layer
-        row = row.rename(columns=lambda x: x + "_" + str(depth))
+        row = row.rename(columns=lambda x: x + "_" + str(i))
 
         # Append columns
         if final_row.empty:
@@ -33,14 +29,13 @@ def merge_profile(layers):
 
 # Set variables and defaults
 inputfile = '../data/imputed_full_classified_data.csv'
-outputfile = '../data/depth_merged_data.csv'
-layer_depth = 50
-max_depth = 150
+outputfile = '../data/layer_merged_data.csv'
+n_layers = 4
 
-h = '03_merge_depth.py -h <help> -i <inputfile> -o <outputfile> -d <depth for each layer> -m <max depth>'
+h = '03_merge_layers.py -h <help> -i <inputfile> -o <outputfile> -l <number of layers>'
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:o:d:m:")
+    opts, args = getopt.getopt(sys.argv[1:], "hi:o:l:")
 except getopt.GetoptError:
     print(h)
     sys.exit(2)
@@ -53,11 +48,8 @@ for opt, arg in opts:
         inputfile = arg
     elif opt in ('-o'):
         outputfile = arg
-    elif opt in ('-d'):
-        layer_depth = int(arg)
-    elif opt in ('-m'):
-        max_depth = int(arg)
-
+    elif opt in ('-l'):
+        n_layers = int(arg)
 
 d = pd.read_csv(inputfile)
 rows = pd.DataFrame()
@@ -73,9 +65,8 @@ for i, id in enumerate(profile_ids):
     layers = layers.sort_values(by=['lower_depth'])
     profiles.append(layers)
 
-
-print('Merging {} layers of {} profiles, each containing {} layers of depth {} in the end.'.format(
-    d.shape[0], len(profiles), int(max_depth/layer_depth), layer_depth))
+print('Merging {} layers of {} profiles, each containing {} layers in the end.'.format(
+    d.shape[0], len(profiles), n_layers))
 
 # Multiprocessing
 with Pool() as pool:
