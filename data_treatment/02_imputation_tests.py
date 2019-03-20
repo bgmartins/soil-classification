@@ -44,12 +44,8 @@ data = pd.read_csv(inputfile)
 if country_filter != '':
     data = data.loc[data['country_id'] == country_filter]
 
-# Drop columns that will not help on the classification
-data = data.drop(columns=['dataset_id', 'country_id', 'cfao_version', 'cfao_major_group',
-                          'cwrb_version', 'cwrb_reference_soil_group', 'cstx_version',
-                          'cstx_order_name', 'translated'])
-data = data.drop(columns=list(
-    data.loc[:, data.columns.str.contains('license')]))
+# Drop remaining columns that will not help on the classification
+data = data.drop(columns=['country_id'])
 
 # Remove the columns that have only missing values and therefore cannot be imputed
 data = data.dropna(axis=1, how='all')
