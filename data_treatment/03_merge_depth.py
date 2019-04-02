@@ -4,6 +4,7 @@ import getopt
 import pandas as pd
 from multiprocessing import Pool
 import time
+import logging
 
 
 # Receives an array of layers of a profile and returns a single row
@@ -28,6 +29,62 @@ def merge_profile(layers):
                 final_row.columns.values[0]], right_on=[row.columns.values[0]])
     # Add a columns describing the total number of layers
     final_row['n_layers'] = len(layers)
+    return final_row
+
+
+def getOverlap(a, b):
+    return max(0, min(a[1], b[1]) - max(a[0], b[0]))
+
+
+def merge_profile_weighted(layers):
+    u_depth = 0
+    final_row = pd.DataFrame()
+    for l_depth in range(layer_depth, max_depth+1, layer_depth):
+        row = pd.DataFrame()
+        total_overlap = 0
+
+        # Find each layer in our profile that belongs to the final layer
+        for _, l in layers.iterrows():
+            # Find the overlap layer to use as weight
+            overlap = getOverlap([l.upper_depth, l.lower_depth], [
+                u_depth, l_depth]) / layer_depth
+            if overlap != 0:
+                # Multiply by the weight and add to the row
+                total_overlap += overlap
+                if(row.empty):
+                    row = l.apply(lambda x: x * overlap)
+                else:
+                    row = row.add(l.apply(lambda x: x * overlap))
+
+        if row.empty:
+            # Default to the last layer in the profile
+            row = layers.tail(1)
+        else:
+            if total_overlap != 1:
+                # If we got to the end but there is still part of the layer to be described
+                # we use the remaining weight and multiply by the last layer
+                row = row.add(l.apply(
+                    lambda x: x * (1-total_overlap)))
+
+            # Transform back to a DataFrame for easier handling
+            row = pd.DataFrame(data=[row], columns=list(layers.columns))
+
+        # Fix u/l_depth
+        row = row.assign(upper_depth=u_depth)
+        row = row.assign(lower_depth=l_depth)
+
+        # Append columns
+        if final_row.empty:
+            final_row = row
+        else:
+            # To avoid floating point errors, dont even ask
+            row = row.assign(profile_id=list(final_row['profile_id'])[0])
+            final_row = final_row.merge(
+                row, how='inner', on='profile_id', suffixes=('', '_{}'.format(str(u_depth))))
+
+        u_depth = l_depth
+
+    final_row = final_row.assign(n_layers=len(layers))
     return final_row
 
 
@@ -79,10 +136,11 @@ print('Merging {} layers of {} profiles, each containing {} layers of depth {} 
 
 # Multiprocessing
 with Pool() as pool:
-    rows = pd.concat(pool.map(merge_profile, profiles))
+    rows = pd.concat(
+        pool.map(merge_profile_weighted, profiles), sort=False)
 
 # Fix naming
-rows['profile_id'] = rows['profile_id_0']
+rows = rows.drop('profile_layer_id', axis=1)
 rows = rows.drop(columns=list(
     rows.loc[:, rows.columns.str.contains('profile_id_')]))
 
