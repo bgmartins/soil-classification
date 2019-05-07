@@ -1,1 +1,5 @@
 .project
+.vscode
+./data/rasters
+./data/test
+./data/.ipynb_checkpoints
