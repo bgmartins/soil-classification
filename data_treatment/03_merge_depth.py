@@ -18,15 +18,16 @@ def merge_profile(layers):
         if row.empty:
             row = layers.iloc[[-1]]
 
-        # Rename the layer
-        row = row.rename(columns=lambda x: x + "_" + str(depth))
+        # Fix u/l_depth
+        row = row.assign(upper_depth=depth)
+        row = row.assign(lower_depth=depth+layer_depth)
 
         # Append columns
         if final_row.empty:
             final_row = row
         else:
-            final_row = final_row.merge(row, how="inner", left_on=[
-                final_row.columns.values[0]], right_on=[row.columns.values[0]])
+            final_row = final_row.merge(
+                row, how='inner', on='profile_id', suffixes=('', '_{}'.format(str(depth))))
     # Add a columns describing the total number of layers
     final_row['n_layers'] = len(layers)
     return final_row
@@ -92,7 +93,7 @@ def merge_profile_weighted(layers):
 inputfile = '../data/imputed_full_classified_data.csv'
 outputfile = '../data/depth_merged_data.csv'
 layer_depth = 50
-max_depth = 150
+max_depth = 200
 
 h = '03_merge_depth.py -h <help> -i <inputfile> -o <outputfile> -d <depth for each layer> -m <max depth>'
 
@@ -137,10 +138,10 @@ print('Merging {} layers of {} profiles, each containing {} layers of depth {} 
 # Multiprocessing
 with Pool() as pool:
     rows = pd.concat(
-        pool.map(merge_profile_weighted, profiles), sort=False)
+        pool.map(merge_profile, profiles), sort=False)
 
 # Fix naming
-rows = rows.drop('profile_layer_id', axis=1)
+
 rows = rows.drop(columns=list(
     rows.loc[:, rows.columns.str.contains('profile_id_')]))
 

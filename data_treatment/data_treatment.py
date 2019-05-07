@@ -3,6 +3,7 @@ import getopt
 import pandas as pd
 from fancyimpute import KNN
 from multiprocessing import Pool
+from sklearn.preprocessing import scale
 
 
 def getOverlap(a, b):
@@ -167,6 +168,13 @@ else:
 
 # Perform imputation
 if knn != 0:
+
+    # Normalize and standardize data
+    ids = classified_data.profile_id
+    classified_data = pd.DataFrame(data=scale(
+        classified_data), columns=classified_data.columns, index=classified_data.index)
+    classified_data.profile_id = ids
+
     print('\n\nImputing values with knn: {}, with {} rows and {} columns.\n\n'.format(
         knn, classified_data.shape[0], classified_data.shape[1]))
 
