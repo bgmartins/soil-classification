@@ -47,8 +47,6 @@ def plot_confusion_matrix_2(y_true, y_pred, classes,
     else:
         print('Confusion matrix, without normalization')
 
-    print(cm)
-
     fig, ax = plt.subplots(figsize=(11, 10))
     im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
     #ax.figure.colorbar(im, ax=ax)
@@ -77,7 +75,7 @@ def plot_confusion_matrix_2(y_true, y_pred, classes,
     return ax
 
 
-def classification_report_with_accuracy_score(y_true, y_pred, print_score=False):
+def classification_report_with_accuracy_score(y_true, y_pred, print_score=True):
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
     if print_score:
@@ -176,7 +174,7 @@ for file in files:
     data = remove_small_classes(data, 15)
 
     y = data.cwrb_reference_soil_group
-    X = data[data.columns.values[3:]]
+    X = data.drop(['profile_id', 'cwrb_reference_soil_group'], axis=1)
 
     # Remove unecessary columns
     # X = remove_lat_lon(X)
@@ -193,20 +191,21 @@ for file in files:
         classification_report_with_accuracy_score))
 
     clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    #print(accuracy_score(y_test, y_pred))
+    # y_pred = clf.predict(X_test)
+    # print(accuracy_score(y_test, y_pred))
 
     print('Results --------------\n\n\n\n')
     classification_report_with_accuracy_score(
         test_results_y_true, test_results_y_pred, print_score=True)
 
-    print('Fold accuracy', res, '\nAverage: ', np.mean(res))
     kappa = cohen_kappa_score(test_results_y_true, test_results_y_pred)
-    print('Kappa Score', kappa)
+    print('Fold accuracy', res, '\nAverage: ',
+          np.mean(res), 'Kappa Score', kappa)
     final_results.append('{} :acc {}, kappa: {}'.format(
         file, str(np.mean(res)), kappa))
     print('Results --------------\n\n\n\n')
 
+""" 
     # Plot things
     labels = list(y.unique())
     labels.sort()
@@ -225,6 +224,7 @@ for file in files:
     plt.tight_layout()
     plt.savefig('feature_importance_{}.pdf'.format(
         basename(file)))
+"""
 
 
 for line in final_results:
