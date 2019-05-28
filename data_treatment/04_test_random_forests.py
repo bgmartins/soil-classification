@@ -182,7 +182,7 @@ for file in files:
         X.loc[:, X.columns.str.contains('profile_layer_id')]))
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.25)
+        X, y, test_size=0.15)
 
     clf = RandomForestClassifier(min_samples_split=6,
                                  n_estimators=1300, min_samples_leaf=2, oob_score=True, n_jobs=-1)

@@ -22,10 +22,34 @@ def remove_small_classes(df, min):
     return df
 
 
-def treat_data_2(data):
+def get_data_structured():
+    inputfile = '../data/test/mexico_k_1_layers_3.csv'
+    profile_file = '../data/profiles.csv'
+    profiles_file = pd.read_csv(profile_file)
+    profiles_file = profiles_file[['profile_id', 'cwrb_reference_soil_group']]
+    data = pd.read_csv(inputfile)
+    data = profiles_file.merge(data, how="inner", left_on=[
+        'profile_id'], right_on=['profile_id'])
+
+    data = scale_data(data)
+    #data = remove_small_classes(data, 15)
+    profile_data, layer_data, y = treat_data_structured(data)
+
+    # Treat Labels
+    encoder = LabelEncoder()
+    encoder.fit(y)
+    encoded_Y = encoder.transform(y)
+    dummy_y = np_utils.to_categorical(encoded_Y)
+
+    return profile_data, layer_data, dummy_y
+
+
+def treat_data_structured(data):
     # Treat Data
-    profile_data = data.iloc[:, [11, 12, -1]]
-    layer_data = data.drop(data.columns[[0, 1, 11, 12, -1]], axis=1)
+    profile_data = data[['latitude', 'longitude']]
+    layer_data = data.drop([
+                           'latitude', 'longitude', 'cwrb_reference_soil_group', 'profile_id', 'n_layers'], axis=1)
+    y = data.cwrb_reference_soil_group
 
     # Treat Profiles
     total_profiles = []
@@ -37,12 +61,12 @@ def treat_data_2(data):
     for row in layer_data.itertuples(index=False):
         i = 0
         layers = []
-        for j in range(9, 28, 9):
+        for j in range(9, 29, 9):
             layers.append(row[i:j])
             i = j
         total_layers.append(layers)
 
-    return np.array(total_profiles), np.array(total_layers)
+    return np.array(total_profiles), np.array(total_layers), y
 
 
 def plot_loss(history):
@@ -120,27 +144,6 @@ def scale_data(data):
     return data
 
 
-def create_model(profile_data, layer_data, n_classes):
-    input_profile = Input(
-        shape=(profile_data.shape[1:]))
-    output_profile = Dense(32, activation="relu")(input_profile)
-
-    input_layer = Input(shape=(layer_data.shape[1:]))
-    masking_layer = Masking(mask_value=0)(input_layer)
-    middle_layer = Bidirectional(LSTM(20))(masking_layer)
-    #dropout_layer = Dropout(0.2)(middle_layer)
-
-    join_layer = concatenate([output_profile, middle_layer])
-
-    output_final = Dense(n_classes, activation='softmax')(join_layer)
-
-    opt = Adam(lr=0.001, decay=1e-6)
-    model = Model(inputs=[input_profile, input_layer], outputs=output_final)
-    model.compile(optimizer=opt, loss='categorical_crossentropy',
-                  metrics=['accuracy'])
-    return model
-
-
 def get_data():
     inputfile = '../data/mexico_k_1.csv'
     profile_file = '../data/profiles.csv'
@@ -188,8 +191,29 @@ def get_data_all():
     return profile_data, layer_data, dummy_y
 
 
+def create_model(profile_data, layer_data, n_classes):
+    input_profile = Input(
+        shape=(profile_data.shape[1:]))
+    output_profile = Dense(32, activation="relu")(input_profile)
+
+    input_layer = Input(shape=(layer_data.shape[1:]))
+    masking_layer = Masking(mask_value=0.0)(input_layer)
+    middle_layer = Bidirectional(LSTM(9))(masking_layer)
+    #dropout_layer = Dropout(0.2)(middle_layer)
+
+    join_layer = concatenate([output_profile, middle_layer])
+
+    output_final = Dense(n_classes, activation='softmax')(join_layer)
+
+    opt = Adam(lr=0.0001, decay=1e-6)
+    model = Model(inputs=[input_profile, input_layer], outputs=output_final)
+    model.compile(optimizer=opt, loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+
 # Read Data
-profile_data, layer_data, y = get_data_all()
+profile_data, layer_data, y = get_data()
 
 
 # ACTUAL MODEL
@@ -197,77 +221,8 @@ model = create_model(profile_data, layer_data, y.shape[1])
 
 
 history = model.fit([profile_data, layer_data],
-                    y, epochs=40, validation_split=0.1)
+                    y, epochs=500, validation_split=0.15)
 
 
 plot_loss(history)
 plot_accuracy(history)
-
-
-"""
-X = X.drop(columns=list(
-    X.loc[:, X.columns.str.contains('profile_layer_id')]))
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.25)
-
-
-features_contexto = features_contexto.reshape(
-    features_contexto.shape[0], 3)
-lista_de_perfis = lista_de_perfis.reshape(lista_de_perfis.shape[0], 3 * 9)
-# Model
-features_contexto, lista_de_perfis = treat_data_2(data)
-
-
-# Para features contexto
-model = Sequential()
-model.add(Dense(512, activation='relu', input_shape=(3,)))
-model.add(Dense(22, activation='softmax'))
-
-model.compile(optimizer='adam', loss='categorical_crossentropy',
-              metrics=['accuracy'])
-
-
-X_train, X_test, y_train, y_test = train_test_split(
-    features_contexto, dummy_y, test_size=0.15)
-model.fit(x=X_train, y=y_train, epochs=30)
-
-
-# Para lista de perfis
-model = Sequential()
-model.add(Bidirectional(LSTM(128, activation='relu',  return_sequences=True,
-                             input_shape=(lista_de_perfis.shape[1:]))))
-model.add(Dropout(0.2))
-model.add(BatchNormalization())
-
-model.add(Bidirectional(LSTM(128, activation='relu',  return_sequences=True)))
-model.add(Dropout(0.2))
-model.add(BatchNormalization())
-
-model.add(Bidirectional(LSTM(128, activation='relu')))
-model.add(Dropout(0.2))
-model.add(BatchNormalization())
-
-model.add(Dense(32, activation='relu'))
-model.add(Dropout(0.2))
-
-model.add(Dense(22, activation='softmax'))
-
-
-
-model.compile(optimizer=opt, loss='categorical_crossentropy',
-              metrics=['accuracy'])
-
-
-X_train, X_test, y_train, y_test = train_test_split(
-    lista_de_perfis, dummy_y, test_size=0.15)
-
-model.fit(x=X_train, y=y_train, epochs=30, batch_size=128,
-          validation_data=(X_test, y_test))
-
-
-# Test model
-
-test_loss, test_acc = model.evaluate(X_test, y_test)
-print('test_acc: ', test_acc)
-"""
