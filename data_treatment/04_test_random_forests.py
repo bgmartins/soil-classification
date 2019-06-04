@@ -6,9 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 from sklearn.metrics import cohen_kappa_score, precision_recall_curve, auc, accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score, make_scorer
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from os.path import splitext, basename
 from os import listdir
@@ -182,15 +180,15 @@ for file in files:
         X.loc[:, X.columns.str.contains('profile_layer_id')]))
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.15)
+        X, y, test_size=0.2, stratify=y)
 
     clf = RandomForestClassifier(min_samples_split=6,
-                                 n_estimators=1300, min_samples_leaf=2, oob_score=True, n_jobs=-1)
+                                 n_estimators=1300, min_samples_leaf=2, oob_score=True, class_weight="balanced", n_jobs=-1)
 
     res = cross_val_score(clf, X_train, y_train, cv=10, scoring=make_scorer(
         classification_report_with_accuracy_score))
 
-    clf.fit(X_train, y_train)
+    # clf.fit(X_train, y_train)
     # y_pred = clf.predict(X_test)
     # print(accuracy_score(y_test, y_pred))
 
@@ -205,13 +203,11 @@ for file in files:
         file, str(np.mean(res)), kappa))
     print('Results --------------\n\n\n\n')
 
-""" 
     # Plot things
-    labels = list(y.unique())
-    labels.sort()
+    labels = list(y.value_counts().index)
     plot_confusion_matrix_2(test_results_y_true,
                             test_results_y_pred, classes=labels)
-
+"""
     df_ = pd.DataFrame(X.columns, columns=['feature'])
     df_['fscore'] = clf.feature_importances_[:, ]
     df_.sort_values('fscore', ascending=False, inplace=True)

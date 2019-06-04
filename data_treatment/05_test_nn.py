@@ -1,13 +1,13 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from keras.models import Input, Sequential, Model
-from keras.layers import Dense, LSTM, Masking, Bidirectional, concatenate, Flatten, Dropout, BatchNormalization
-from keras.optimizers import Adam
 import numpy as np
-from keras.utils import np_utils
-from sklearn.preprocessing import LabelEncoder, scale, MinMaxScaler, normalize
-from multiprocessing import Pool
+import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler, normalize
+from keras.models import Input, Sequential, Model
+from keras.layers import Dense, LSTM, TimeDistributed, Masking, Bidirectional, concatenate, Flatten, Dropout, BatchNormalization
+from keras.optimizers import Adam
+from keras.callbacks import EarlyStopping
+from keras.utils import np_utils
 
 
 def remove_small_classes(df, min):
@@ -134,9 +134,11 @@ def scale_data(data):
     data_scaled = data.drop(
         ['cwrb_reference_soil_group', 'profile_id'], axis=1).values
 
-    data_scaled -= data_scaled.mean(axis=0)
-    data_scaled /= data_scaled.std(axis=0)
-    #data_scaled = normalize(data_scaled)
+    scaler = StandardScaler()
+    data_scaled = scaler.fit_transform(data_scaled)
+
+    #data_scaled -= data_scaled.mean(axis=0)
+    #data_scaled /= data_scaled.std(axis=0)
 
     data = pd.DataFrame(data=data_scaled, columns=list(
         data.drop(['cwrb_reference_soil_group', 'profile_id'], axis=1).columns))
@@ -145,7 +147,7 @@ def scale_data(data):
 
 
 def get_data():
-    inputfile = '../data/mexico_k_1.csv'
+    inputfile = '../data/mexico.csv'
     profile_file = '../data/profiles.csv'
     profiles_file = pd.read_csv(profile_file)
     profiles_file = profiles_file[['profile_id', 'cwrb_reference_soil_group']]
@@ -153,6 +155,7 @@ def get_data():
     data = profiles_file.merge(data, how="inner", left_on=[
         'profile_id'], right_on=['profile_id'])
 
+    data.fillna(-1., inplace=True)
     data = scale_data(data)
     data = remove_small_classes(data, 15)
     profile_data, layer_data, y = treat_data(data)
@@ -175,7 +178,7 @@ def get_data_all():
     data = profiles_file.merge(data, how="inner", left_on=[
         'profile_id'], right_on=['profile_id'])
 
-    data.fillna(0, inplace=True)
+    data.fillna(-1., inplace=True)
     data = data.drop('country_id', axis=1)
 
     data = scale_data(data)
@@ -198,14 +201,17 @@ def create_model(profile_data, layer_data, n_classes):
 
     input_layer = Input(shape=(layer_data.shape[1:]))
     masking_layer = Masking(mask_value=0.0)(input_layer)
-    middle_layer = Bidirectional(LSTM(9))(masking_layer)
-    #dropout_layer = Dropout(0.2)(middle_layer)
+    middle_layer = Bidirectional(
+        LSTM(16, return_sequences=True))(masking_layer)
 
-    join_layer = concatenate([output_profile, middle_layer])
+    dropout_layer = TimeDistributed(Dropout(0.1))(middle_layer)
+    after_dropout_layer = Bidirectional(LSTM(16))(dropout_layer)
+
+    join_layer = concatenate([output_profile, after_dropout_layer])
 
     output_final = Dense(n_classes, activation='softmax')(join_layer)
 
-    opt = Adam(lr=0.0001, decay=1e-6)
+    opt = Adam(lr=0.0005, decay=1e-6)
     model = Model(inputs=[input_profile, input_layer], outputs=output_final)
     model.compile(optimizer=opt, loss='categorical_crossentropy',
                   metrics=['accuracy'])
@@ -214,15 +220,14 @@ def create_model(profile_data, layer_data, n_classes):
 
 # Read Data
 profile_data, layer_data, y = get_data()
+es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10)
 
 
 # ACTUAL MODEL
 model = create_model(profile_data, layer_data, y.shape[1])
 
-
 history = model.fit([profile_data, layer_data],
-                    y, epochs=500, validation_split=0.15)
-
+                    y, epochs=500, validation_split=0.15, callbacks=[es])
 
 plot_loss(history)
 plot_accuracy(history)
