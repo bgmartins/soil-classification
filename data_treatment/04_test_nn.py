@@ -1,3 +1,6 @@
+from multiplicative_lstm import MultiplicativeLSTM
+from clr_callback import CyclicLR
+from nested_lstm import NestedLSTM
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,6 +11,9 @@ from keras.layers import Dense, LSTM, TimeDistributed, Masking, Bidirectional, c
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from keras.utils import np_utils
+
+import sys
+sys.path.append('./utils')
 
 
 def remove_small_classes(df, min):
@@ -147,7 +153,7 @@ def scale_data(data):
 
 
 def get_data():
-    inputfile = '../data/mexico.csv'
+    inputfile = '../data/mexico_k_1.csv'
     profile_file = '../data/profiles.csv'
     profiles_file = pd.read_csv(profile_file)
     profiles_file = profiles_file[['profile_id', 'cwrb_reference_soil_group']]
@@ -228,7 +234,10 @@ def create_model(profile_data, layer_data, n_classes):
         LSTM(16, return_sequences=True))(masking_layer)
 
     dropout_layer = TimeDistributed(Dropout(0.1))(middle_layer)
-    after_dropout_layer = Bidirectional(LSTM(16))(dropout_layer)
+
+    #after_dropout_layer = Bidirectional(LSTM(16))(dropout_layer)
+    #after_dropout_layer = Bidirectional(NestedLSTM(units=64, depth=2))(dropout_layer)
+    after_dropout_layer = Bidirectional(MultiplicativeLSTM(16))(dropout_layer)
 
     join_layer = concatenate([output_profile, after_dropout_layer])
 
@@ -243,8 +252,12 @@ def create_model(profile_data, layer_data, n_classes):
 
 # Read Data
 profile_data, layer_data, y = get_data()
-es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=50)
+es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=15)
 
+# Cyclic learning rate test
+clr = CyclicLR(base_lr=0.0001, max_lr=0.001, step_size=(
+    (3) * (profile_data.shape[0])))
+# Cyclic test
 
 # ACTUAL MODEL
 model = create_model(profile_data, layer_data, y.shape[1])
