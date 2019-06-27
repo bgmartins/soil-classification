@@ -35,7 +35,7 @@ def plot_confusion_matrix_2(y_true, y_pred, classes,
             title = 'Confusion matrix, without normalization'
 
     # Compute confusion matrix
-    cm = confusion_matrix(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
 
     # Only use the labels that appear in the data
     #classes = classes[unique_labels(y_true, y_pred)]
@@ -123,7 +123,7 @@ def remove_small_classes(df, min):
 
 
 # Set variables and defaults
-inputfile = '../data/depth_merged_data.csv'
+inputfile = '../data/test/mexico_k_1_layers_5.csv'
 profile_file = '../data/profiles.csv'
 input_folder = ''
 
@@ -188,7 +188,7 @@ for file in files:
     res = cross_val_score(clf, X_train, y_train, cv=10, scoring=make_scorer(
         classification_report_with_accuracy_score))
 
-    # clf.fit(X_train, y_train)
+    clf.fit(X_train, y_train)
     # y_pred = clf.predict(X_test)
     # print(accuracy_score(y_test, y_pred))
 
@@ -207,7 +207,6 @@ for file in files:
     labels = list(y.value_counts().index)
     plot_confusion_matrix_2(test_results_y_true,
                             test_results_y_pred, classes=labels)
-"""
     df_ = pd.DataFrame(X.columns, columns=['feature'])
     df_['fscore'] = clf.feature_importances_[:, ]
     df_.sort_values('fscore', ascending=False, inplace=True)
@@ -220,7 +219,6 @@ for file in files:
     plt.tight_layout()
     plt.savefig('feature_importance_{}.pdf'.format(
         basename(file)))
-"""
 
 
 for line in final_results:

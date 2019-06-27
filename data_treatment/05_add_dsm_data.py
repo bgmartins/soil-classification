@@ -15,7 +15,7 @@ def add_elevation(df, file, indexes):
         for index in indexes:
             try:
                 row = df.loc[index]
-                val = table.map_pixel(row['longitude'], row['latitude'])
+                val = table.map_pixel(row['long'], row['lat'])
                 df.loc[index, 'elevation'] = float(val)
             except:
                 df.loc[index, 'elevation'] = 0
@@ -37,7 +37,7 @@ def add_slope_aspect_curvature(df, file, indexes):
             for index in indexes:
                 try:
                     row = df.loc[index]
-                    val = table.map_pixel(row['longitude'], row['latitude'])
+                    val = table.map_pixel(row['lon'], row['lat'])
                     df.loc[index, attr] = float(val)
                 except:
                     df.loc[index, attr] = 0
@@ -49,9 +49,10 @@ def add_slope_aspect_curvature(df, file, indexes):
 
 
 # Set variables and defaults
-inputfile = '../data/data.csv'
-outputfile = '../data/data_with_dsm.csv'
+inputfile = '../data/test/mexico_k_1_layers_5.csv'
+outputfile = '../data/mexico_k_1_layers_5_dsm.csv'
 dsm_folder = '../data/rasters'
+profile_file = '../data/profiles.csv'
 
 h = '05_add_dsm_data.py -h <help> -i <inputfile> -o <outputfile> -d <dsm files folder>'
 
@@ -76,10 +77,17 @@ for opt, arg in opts:
 df = pd.read_csv(inputfile)
 needed_files = {}
 
+profiles = pd.read_csv(profile_file)
+profiles = profiles[['profile_id', 'latitude', 'longitude']]
+profiles.columns = ['profile_id', 'lat', 'lon']
+
+df = profiles.merge(df, how="inner", left_on=[
+    'profile_id'], right_on=['profile_id'])
+
 # Fill the needed files for generating terrain data
 for index, row in df.iterrows():
     key = '{}/N{:03}W{:03}_AVE_DSM.tif'.format(
-        dsm_folder, abs(int(row['latitude'])), abs(int(row['longitude'])))
+        dsm_folder, abs(int(row['lat'])), abs(int(row['lon'])))
     if key not in needed_files:
         needed_files[key] = [index]
     else:

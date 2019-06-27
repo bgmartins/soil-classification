@@ -1,6 +1,4 @@
-from multiplicative_lstm import MultiplicativeLSTM
-from clr_callback import CyclicLR
-from nested_lstm import NestedLSTM
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,6 +12,9 @@ from keras.utils import np_utils
 
 import sys
 sys.path.append('./utils')
+from multiplicative_lstm import MultiplicativeLSTM
+from clr_callback import CyclicLR
+from nested_lstm import NestedLSTM
 
 
 def remove_small_classes(df, min):
@@ -235,9 +236,9 @@ def create_model(profile_data, layer_data, n_classes):
 
     dropout_layer = TimeDistributed(Dropout(0.1))(middle_layer)
 
-    #after_dropout_layer = Bidirectional(LSTM(16))(dropout_layer)
+    after_dropout_layer = Bidirectional(LSTM(16))(dropout_layer)
     #after_dropout_layer = Bidirectional(NestedLSTM(units=64, depth=2))(dropout_layer)
-    after_dropout_layer = Bidirectional(MultiplicativeLSTM(16))(dropout_layer)
+    #after_dropout_layer = Bidirectional(MultiplicativeLSTM(16))(dropout_layer)
 
     join_layer = concatenate([output_profile, after_dropout_layer])
 
