@@ -12,15 +12,11 @@ def merge_profile(layers):
     final_row = pd.DataFrame()
     for depth in range(0, max_depth+1, layer_depth):
         # Find the layer for current depth
-        row = layers.loc[(layers['lower_depth'] > depth)].head(1)
+        row = layers.loc[(layers['_ld'] > depth)].head(1)
 
         # Default to the last layer
         if row.empty:
             row = layers.iloc[[-1]]
-
-        # Fix u/l_depth
-        row = row.assign(upper_depth=depth)
-        row = row.assign(lower_depth=depth+layer_depth)
 
         # Append columns
         if final_row.empty:
@@ -47,7 +43,7 @@ def merge_profile_weighted(layers):
         # Find each layer in our profile that belongs to the final layer
         for _, l in layers.iterrows():
             # Find the overlap layer to use as weight
-            overlap = getOverlap([l.upper_depth, l.lower_depth], [
+            overlap = getOverlap([l._ud, l._ld], [
                 u_depth, l_depth]) / layer_depth
             if overlap != 0:
                 # Multiply by the weight and add to the row
@@ -71,8 +67,8 @@ def merge_profile_weighted(layers):
             row = pd.DataFrame(data=[row], columns=list(layers.columns))
 
         # Fix u/l_depth
-        row = row.assign(upper_depth=u_depth)
-        row = row.assign(lower_depth=l_depth)
+        #row = row.assign(upper_depth=u_depth)
+        #row = row.assign(lower_depth=l_depth)
 
         # Append columns
         if final_row.empty:
@@ -144,6 +140,10 @@ with Pool() as pool:
 
 rows = rows.drop(columns=list(
     rows.loc[:, rows.columns.str.contains('profile_id_')]))
+rows = rows.drop(columns=list(
+    rows.loc[:, rows.columns.str.contains('_ud')]))
+rows = rows.drop(columns=list(
+    rows.loc[:, rows.columns.str.contains('_ld')]))
 
 duration = time.time() - start_time
 print(f"Duration {duration} seconds")

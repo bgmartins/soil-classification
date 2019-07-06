@@ -20,7 +20,7 @@ def merge_profile_weighted(layers):
         # Find each layer in our profile that belongs to the final layer
         for _, l in layers.iterrows():
             # Find the overlap layer to use as weight
-            overlap = getOverlap([l.upper_depth, l.lower_depth], [
+            overlap = getOverlap([l._ud, l._ld], [
                 u_depth, l_depth]) / layer_depth
             if overlap != 0:
                 # Multiply by the weight and add to the row
@@ -44,8 +44,8 @@ def merge_profile_weighted(layers):
             row = pd.DataFrame(data=[row], columns=list(layers.columns))
 
         # Fix u/l_depth
-        row = row.assign(upper_depth=u_depth)
-        row = row.assign(lower_depth=l_depth)
+        #row = row.assign(upper_depth=u_depth)
+        #row = row.assign(lower_depth=l_depth)
 
         # Append columns
         if final_row.empty:
@@ -90,7 +90,7 @@ h = 'data_treatment.py -h <help> -i <input file> -p <profile file> -l <layers fi
 country_filter = ''
 knn = 0
 layer_depth = 0
-max_depth = 150
+max_depth = 200
 n_layers = 0
 
 # Read arguments
@@ -171,9 +171,12 @@ if knn != 0:
 
     # Normalize and standardize data
     ids = classified_data.profile_id
+    ud = classified_data.upper_depth
+    ld = classified_data.lower_depth
+
+    classified_data.drop(['profile_id'], axis=1)
     classified_data = pd.DataFrame(data=scale(
         classified_data), columns=classified_data.columns, index=classified_data.index)
-    classified_data.profile_id = ids
 
     print('\n\nImputing values with knn: {}, with {} rows and {} columns.\n\n'.format(
         knn, classified_data.shape[0], classified_data.shape[1]))
@@ -181,6 +184,10 @@ if knn != 0:
     # Impute the missing values
     classified_data = pd.DataFrame(data=KNN(k=knn).fit_transform(
         classified_data), columns=classified_data.columns, index=classified_data.index)
+
+    classified_data['profile_id'] = ids
+    classified_data['_ud'] = ud
+    classified_data['_ld'] = ld
 
 
 # Merge
@@ -216,6 +223,10 @@ if n_layers != 0 or layer_depth != 0:
         classified_data.loc[:, classified_data.columns.str.contains('latitude_')]))
     classified_data = classified_data.drop(columns=list(
         classified_data.loc[:, classified_data.columns.str.contains('longitude_')]))
+    classified_data = classified_data.drop(columns=list(
+        classified_data.loc[:, classified_data.columns.str.contains('_ud')]))
+    classified_data = classified_data.drop(columns=list(
+        classified_data.loc[:, classified_data.columns.str.contains('_ld')]))
 
 
 print('Final data has {} rows and {} columns.'.format(

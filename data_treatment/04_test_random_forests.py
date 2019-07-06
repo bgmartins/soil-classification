@@ -111,6 +111,19 @@ def remove_lat_lon(X):
     return X
 
 
+def return_preds(clf, X_test, y_test, filename):
+    preds = clf.predict_proba(X_test)
+
+    preds_dict = {}
+
+    for i, key in enumerate(clf.classes_):
+        preds_dict[key] = preds[:, i]
+
+    preds_df = pd.DataFrame.from_dict(preds_dict)
+    preds_df["Label"] = list(y_test)
+    preds_df.to_csv(f'preds_{filename}.csv', index=False)
+
+
 def remove_small_classes(df, min):
     uniques = df.cwrb_reference_soil_group.unique()
     for u in uniques:
@@ -166,6 +179,7 @@ for file in files:
     else:
         data = pd.read_csv(file)
 
+    data.dropna(inplace=True)
     data = profiles.merge(data, how="inner", left_on=[
         'profile_id'], right_on=['profile_id'])
 
@@ -219,6 +233,8 @@ for file in files:
     plt.tight_layout()
     plt.savefig('feature_importance_{}.pdf'.format(
         basename(file)))
+
+    return_preds(clf, X_test, y_test, basename(file))
 
 
 for line in final_results:

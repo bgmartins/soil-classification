@@ -102,6 +102,19 @@ def remove_small_classes(df, min):
     return df
 
 
+def return_preds(clf, X_test, y_test, filename):
+    preds = clf.predict_proba(X_test)
+
+    preds_dict = {}
+
+    for i, key in enumerate(clf.classes_):
+        preds_dict[key] = preds[:, i]
+
+    preds_df = pd.DataFrame.from_dict(preds_dict)
+    preds_df["Label"] = list(y_test)
+    preds_df.to_csv(f'preds_{filename}.csv', index=False)
+
+
 def get_data():
     inputfile = '../data/test/mexico_k_1_layers_5.csv'
     profile_file = '../data/profiles.csv'
@@ -158,9 +171,11 @@ plot_confusion_matrix(test_results_y_true,
                       test_results_y_pred, classes=labels)
 
 
+#clf.fit(X_train, y_train)
+#return_preds(clf, X_test, y_test, "preds_gradient_boosting")
+
 """
 
-clf.fit(X_train, y_train)
 
 y_pred = clf.predict(X_test)
 

@@ -7,21 +7,53 @@ import time
 import logging
 
 
-# Receives an array of layers of a profile and returns a single row
+def getOverlap(a, b):
+    return max(0, min(a[1], b[1]) - max(a[0], b[0]))
+
+
+def merge_profile_by_most_present(layers):
+    # Uses the most predominant layer for each depth
+    default_depths = [0, 5, 15, 30, 60, 100, 200]
+    final_row = pd.DataFrame()
+    for i in range(1, len(default_depths)):
+        overlap = 0.
+        row = pd.DataFrame()
+
+        j = 0
+        for _, l in layers.iterrows():
+            # Find the overlap layer to use as weight
+            temp_overlap = getOverlap([l._ud, l._ld], [
+                default_depths[i-1], default_depths[i]])
+            if temp_overlap > overlap:
+                # Multiply by the weight and add to the row
+                overlap = temp_overlap
+                row = layers.iloc[[j]]
+            j += 1
+
+        if row.empty:
+            row = layers.iloc[[-1]]
+
+        if final_row.empty:
+            final_row = row
+        else:
+            final_row = final_row.merge(
+                row, how='inner', on='profile_id', suffixes=('', '_{}'.format(str(default_depths[i-1]))))
+
+    final_row['n_layers'] = len(layers)
+    return final_row
+
+
 def merge_profile(layers):
+    # Receives an array of layers of a profile and returns a single row
     default_depths = [2.5, 10, 22.5, 45, 80, 150]
     final_row = pd.DataFrame()
     for depth in default_depths:
         # Find the layer for current depth
-        row = layers.loc[(layers['lower_depth'] > depth)].head(1)
+        row = layers.loc[(layers['_ld'] > depth)].head(1)
 
         # Default to the last layer
         if row.empty:
             row = layers.iloc[[-1]]
-
-        # Fix u/l_depth
-        #row = row.assign(upper_depth=depth)
-        #row = row.assign(lower_depth=depth+layer_depth)
 
         # Append columns
         if final_row.empty:
@@ -35,8 +67,8 @@ def merge_profile(layers):
 
 
 # Set variables and defaults
-inputfile = '../data/imputed_full_classified_data.csv'
-outputfile = '../data/depth_merged_data.csv'
+inputfile = '../data/mexico_k_1.csv'
+outputfile = '../data/standard_merged_data.csv'
 
 h = '03_merge_standard.py -h <help> -i <inputfile> -o <outputfile> '
 
@@ -74,7 +106,9 @@ for i, id in enumerate(profile_ids):
 print('Merging {} layers of {} profiles'.format(
     d.shape[0], len(profiles)))
 
+
 # Multiprocessing
+
 with Pool() as pool:
     rows = pd.concat(
         pool.map(merge_profile, profiles), sort=False)
@@ -83,6 +117,10 @@ with Pool() as pool:
 
 rows = rows.drop(columns=list(
     rows.loc[:, rows.columns.str.contains('profile_id_')]))
+rows = rows.drop(columns=list(
+    rows.loc[:, rows.columns.str.contains('_ud')]))
+rows = rows.drop(columns=list(
+    rows.loc[:, rows.columns.str.contains('_ld')]))
 
 duration = time.time() - start_time
 print(f"Duration {duration} seconds")
