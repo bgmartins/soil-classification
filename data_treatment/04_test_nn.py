@@ -10,6 +10,7 @@ from keras.layers import Dense, LSTM, TimeDistributed, Masking, Bidirectional, c
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from keras.utils import np_utils
+from sklearn.metrics import cohen_kappa_score
 
 import sys
 sys.path.append('./utils')
@@ -39,7 +40,7 @@ def get_data_structured():
     data = profiles_file.merge(data, how="inner", left_on=[
         'profile_id'], right_on=['profile_id'])
 
-    data = scale_data(data)
+    #data = scale_data(data)
     #data = remove_small_classes(data, 15)
     profile_data, layer_data, y = treat_data_structured(data)
 
@@ -164,7 +165,7 @@ def get_data():
         'profile_id'], right_on=['profile_id'])
 
     data.fillna(-1., inplace=True)
-    data = scale_data(data)
+    #data = scale_data(data)
     data = remove_small_classes(data, 15)
     profile_data, layer_data, y = treat_data(data)
 
@@ -189,7 +190,7 @@ def get_data_all():
     data.fillna(-1., inplace=True)
     data = data.drop('country_id', axis=1)
 
-    data = scale_data(data)
+    #data = scale_data(data)
     #data = remove_small_classes(data, 15)
     profile_data, layer_data, y = treat_data(data)
 
@@ -264,8 +265,23 @@ es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=5)
 # ACTUAL MODEL
 model = create_model(profile_data, layer_data, y.shape[1])
 
-history = model.fit([profile_data, layer_data],
-                    y, epochs=500, validation_split=0.2, callbacks=[es])
+X_train_profile = profile_data[1000:]
+X_train_layer = layer_data[1000:]
+X_test_layer = layer_data[:1000]
+X_test_profile = profile_data[:1000]
+y_train = y[1000:]
+y_test = y[:1000]
+
+
+history = model.fit([X_train_profile, X_train_layer],
+                    y_train, epochs=500, validation_split=0.2, callbacks=[es])
 
 plot_loss(history)
 plot_accuracy(history)
+
+
+y_pred = model.predict([X_test_profile, X_test_layer])
+
+
+print(
+    f'kappa {cohen_kappa_score(y_test.argmax(axis=1), y_pred.argmax(axis=1))}')

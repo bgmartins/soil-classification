@@ -67,8 +67,15 @@ def merge_profile_layers(layers):
     final_row = pd.DataFrame()
     for i in range(0, n_layers):
         # Find the current layer
-        row = layers.iloc[[i]] if len(layers) > i else layers.tail(1)
+        row = layers.iloc[[i]].copy() if len(
+            layers) > i else layers.tail(1).copy()
 
+        """ # PARA FAZER SEM A ULTIMA CAMADA E COM -9999 EM TUDO
+        if not(len(layers) > i):
+            for col in row.columns:
+                if col != 'profile_id':
+                    row[col] = -9999
+        """
         # Append columns
         if final_row.empty:
             final_row = row
@@ -148,7 +155,8 @@ if input_file == '':
 
     # Drop columns that are not numeric / not necessary (licenses)
     classified_data = classified_data.drop(columns=['dataset_id', 'country_id', 'cfao_version', 'cfao_major_group',
-                                                    'cwrb_version', 'cwrb_reference_soil_group', 'cstx_version', 'cstx_order_name', 'translated', 'profile_layer_id'])
+                                                    'cwrb_version', 'cwrb_reference_soil_group', 'cstx_version',
+                                                    'cstx_order_name', 'translated', 'profile_layer_id'])
     classified_data = classified_data.drop(columns=list(
         classified_data.loc[:, classified_data.columns.str.contains('license')]))
 
@@ -160,6 +168,13 @@ if input_file == '':
     classified_data = classified_data.drop(
         columns=c[c < threshold].index.tolist())
 
+    # Remove rows where lower depth is clearly outlier
+    classified_data = classified_data[classified_data.lower_depth < 999]
+
+    # Add Thickness
+    classified_data['thickness'] = classified_data.apply(
+        lambda row: row['lower_depth'] - row['upper_depth'], axis=1)
+
     print('Cleaned data has {} rows and {} columns'.format(
         classified_data.shape[0], classified_data.shape[1]) + (', filtered by {}'.format(country_filter) if country_filter != '' else ''))
 else:
@@ -168,13 +183,13 @@ else:
 
 # Perform imputation
 if knn != 0:
-
-    # Normalize and standardize data
     ids = classified_data.profile_id
     ud = classified_data.upper_depth
     ld = classified_data.lower_depth
 
     classified_data.drop(['profile_id'], axis=1)
+
+    # Normalizes and standardizes data
     classified_data = pd.DataFrame(data=scale(
         classified_data), columns=classified_data.columns, index=classified_data.index)
 

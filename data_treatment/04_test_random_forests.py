@@ -169,6 +169,7 @@ profiles = profiles[['profile_id', 'cwrb_reference_soil_group']]
 
 final_results = []
 for file in files:
+    print(f'testing {file}')
     test_results = []
     test_results_y_true = list()
     test_results_y_pred = list()
@@ -197,7 +198,7 @@ for file in files:
         X, y, test_size=0.2, stratify=y)
 
     clf = RandomForestClassifier(min_samples_split=6,
-                                 n_estimators=1300, min_samples_leaf=2, oob_score=True, class_weight="balanced", n_jobs=-1)
+                                 n_estimators=1300, min_samples_leaf=2, oob_score=True, class_weight="balanced", n_jobs=2)
 
     res = cross_val_score(clf, X_train, y_train, cv=10, scoring=make_scorer(
         classification_report_with_accuracy_score))
@@ -213,11 +214,11 @@ for file in files:
     kappa = cohen_kappa_score(test_results_y_true, test_results_y_pred)
     print('Fold accuracy', res, '\nAverage: ',
           np.mean(res), 'Kappa Score', kappa)
-    final_results.append('{} :acc {}, kappa: {}'.format(
-        file, str(np.mean(res)), kappa))
-    print('Results --------------\n\n\n\n')
+    final_results.append((file, str(np.mean(res)), kappa))
+    print('Results  --------------\n\n\n\n')
 
     # Plot things
+    '''
     labels = list(y.value_counts().index)
     plot_confusion_matrix_2(test_results_y_true,
                             test_results_y_pred, classes=labels)
@@ -234,8 +235,12 @@ for file in files:
     plt.savefig('feature_importance_{}.pdf'.format(
         basename(file)))
 
-    return_preds(clf, X_test, y_test, basename(file))
+    #return_preds(clf, X_test, y_test, basename(file))
+'''
 
-
+# Print and store final results
 for line in final_results:
     print(line)
+results_df = pd.DataFrame(final_results, columns=[
+                          "Filename", "Accuracy", "Kappa"])
+results_df.to_csv('results.csv', index=False)

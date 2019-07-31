@@ -2,11 +2,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import cohen_kappa_score, precision_recall_curve, auc, accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score, make_scorer
-from sklearn.preprocessing import StandardScaler, LabelEncoder
 from xgboost import XGBClassifier
 from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV
 from sklearn.metrics import cohen_kappa_score
-from keras.utils import np_utils
 from sklearn.utils.class_weight import compute_class_weight
 
 
@@ -129,11 +127,6 @@ def get_data():
 
     y = data.cwrb_reference_soil_group.astype(str)
     X = data.drop(['profile_id', 'cwrb_reference_soil_group'], axis=1)
-
-    encoder = LabelEncoder()
-    encoder.fit(y)
-    encoded_Y = encoder.transform(y)
-    dummy_y = np_utils.to_categorical(encoded_Y)
 
     return X, y
 
