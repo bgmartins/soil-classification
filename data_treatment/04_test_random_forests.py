@@ -1,16 +1,14 @@
 import sys
 import getopt
-import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
-from sklearn.metrics import cohen_kappa_score, precision_recall_curve, auc, accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score, make_scorer
-from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV
+from sklearn.metrics import cohen_kappa_score, accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score, make_scorer
+from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from os.path import splitext, basename
+from os.path import basename
 from os import listdir
-from sklearn.utils.multiclass import unique_labels
 
 
 def warn(*args, **kwargs):
@@ -38,7 +36,6 @@ def plot_confusion_matrix_2(y_true, y_pred, classes,
     cm = confusion_matrix(y_true, y_pred, labels=classes)
 
     # Only use the labels that appear in the data
-    #classes = classes[unique_labels(y_true, y_pred)]
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix")
@@ -47,7 +44,7 @@ def plot_confusion_matrix_2(y_true, y_pred, classes,
 
     fig, ax = plt.subplots(figsize=(11, 10))
     im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
-    #ax.figure.colorbar(im, ax=ax)
+    # ax.figure.colorbar(im, ax=ax)
     # We want to show all ticks...
     ax.set(xticks=np.arange(cm.shape[1]),
            yticks=np.arange(cm.shape[0]),
@@ -69,7 +66,8 @@ def plot_confusion_matrix_2(y_true, y_pred, classes,
                     ha="center", va="center",
                     color="white" if cm[i, j] > thresh else "black")
     fig.tight_layout()
-    plt.savefig(title+'.pdf')
+    plt.show()
+    # plt.savefig(title+'.pdf')
     return ax
 
 
@@ -111,19 +109,6 @@ def remove_lat_lon(X):
     return X
 
 
-def return_preds(clf, X_test, y_test, filename):
-    preds = clf.predict_proba(X_test)
-
-    preds_dict = {}
-
-    for i, key in enumerate(clf.classes_):
-        preds_dict[key] = preds[:, i]
-
-    preds_df = pd.DataFrame.from_dict(preds_dict)
-    preds_df["Label"] = list(y_test)
-    preds_df.to_csv(f'preds_{filename}.csv', index=False)
-
-
 def remove_small_classes(df, min):
     uniques = df.cwrb_reference_soil_group.unique()
     for u in uniques:
@@ -139,11 +124,13 @@ def remove_small_classes(df, min):
 inputfile = '../data/test/mexico_k_1_layers_5.csv'
 profile_file = '../data/profiles.csv'
 input_folder = ''
+return_results = False
+plot_stuff = False
 
-h = '04_test_random_forests.py -h <help> -i <input file> -f <input folder> -p <profiles file>'
+h = '04_test_random_forests.py -h <help> -i <input file> -f <input folder> -p <profiles file> -g <plot>'
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "hi:f:p:")
+    opts, args = getopt.getopt(sys.argv[1:], "hi:f:p:rg")
 except getopt.GetoptError:
     print(h)
     sys.exit(2)
@@ -158,6 +145,10 @@ for opt, arg in opts:
         input_folder = arg
     elif opt in ('-p'):
         profile_file = arg
+    elif opt in ('-r'):
+        return_results = True
+    elif opt in ('-g'):
+        plot_stuff = True
 
 if input_folder != '':
     files = listdir(input_folder)
@@ -218,29 +209,30 @@ for file in files:
     print('Results  --------------\n\n\n\n')
 
     # Plot things
-    '''
-    labels = list(y.value_counts().index)
-    plot_confusion_matrix_2(test_results_y_true,
-                            test_results_y_pred, classes=labels)
-    df_ = pd.DataFrame(X.columns, columns=['feature'])
-    df_['fscore'] = clf.feature_importances_[:, ]
-    df_.sort_values('fscore', ascending=False, inplace=True)
-    df_ = df_[0:10]
-    df_.sort_values('fscore', ascending=True, inplace=True)
-    df_.plot(kind='barh', x='feature', y='fscore',
-             color='blue', legend=False)
-    plt.xlabel('Relative Importance')
-    plt.ylabel('')
-    plt.tight_layout()
-    plt.savefig('feature_importance_{}.pdf'.format(
-        basename(file)))
+    if plot_stuff:
+        labels = list(y.value_counts().index)
+        plot_confusion_matrix_2(test_results_y_true,
+                                test_results_y_pred, classes=labels)
 
-    #return_preds(clf, X_test, y_test, basename(file))
-'''
+        df_ = pd.DataFrame(X.columns, columns=['feature'])
+        df_['fscore'] = clf.feature_importances_[:, ]
+        df_.sort_values('fscore', ascending=False, inplace=True)
+        df_ = df_[0:10]
+        df_.sort_values('fscore', ascending=True, inplace=True)
+        df_.plot(kind='barh', x='feature', y='fscore',
+                 color='blue', legend=False)
+        plt.xlabel('Relative Importance')
+        plt.ylabel('')
+        plt.tight_layout()
+        plt.show()
+        # plt.savefig('feature_importance_{}.pdf'.format(
+        #    basename(file)))
+
 
 # Print and store final results
-for line in final_results:
-    print(line)
-results_df = pd.DataFrame(final_results, columns=[
-                          "Filename", "Accuracy", "Kappa"])
-results_df.to_csv('results.csv', index=False)
+if return_results:
+    for line in final_results:
+        print(line)
+    results_df = pd.DataFrame(final_results, columns=[
+        "Filename", "Accuracy", "Kappa"])
+    results_df.to_csv('results.csv', index=False)

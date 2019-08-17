@@ -1,17 +1,28 @@
-import pandas as pd
+import sys
+import getopt
+import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+import warnings
 from sklearn.metrics import cohen_kappa_score, precision_recall_curve, auc, accuracy_score, confusion_matrix, classification_report, precision_score, recall_score, f1_score, make_scorer
-from xgboost import XGBClassifier
 from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV
-from sklearn.metrics import cohen_kappa_score
-from sklearn.utils.class_weight import compute_class_weight
+from os.path import splitext, basename
+from os import listdir
+from xgboost import XGBClassifier
 
 
-def plot_confusion_matrix(y_true, y_pred, classes,
-                          normalize=True,
-                          title=None,
-                          cmap=plt.cm.Blues):
+def warn(*args, **kwargs):
+    pass
+
+
+warnings.warn = warn
+
+
+def plot_confusion_matrix_2(y_true, y_pred, classes,
+                            normalize=True,
+                            title=None,
+                            cmap=plt.cm.Blues):
     """
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
@@ -25,8 +36,6 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     # Compute confusion matrix
     cm = confusion_matrix(y_true, y_pred, labels=classes)
 
-    # Only use the labels that appear in the data
-    # classes = classes[unique_labels(y_true, y_pred)]
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix")
@@ -57,7 +66,8 @@ def plot_confusion_matrix(y_true, y_pred, classes,
                     ha="center", va="center",
                     color="white" if cm[i, j] > thresh else "black")
     fig.tight_layout()
-    plt.savefig(title+'.pdf')
+    plt.show()
+    # plt.savefig(title+'.pdf')
     return ax
 
 
@@ -89,120 +99,129 @@ def classification_report_with_accuracy_score(y_true, y_pred, print_score=True):
 
 
 def remove_small_classes(df, min):
-    # TODO TEM DE SER FIXED PORQUE ISTO AGORA ESTA POR CAMADAS E NAO PERFIS
     uniques = df.cwrb_reference_soil_group.unique()
     for u in uniques:
         cnt = df[df.cwrb_reference_soil_group == u].shape[0]
         if cnt < min:
             df = df[df.cwrb_reference_soil_group != u]
             print('Deleting {} with {} occurrences'.format(u, cnt))
-
     return df
 
 
-def return_preds(clf, X_test, y_test, filename):
-    preds = clf.predict_proba(X_test)
+# Set variables and defaults
+inputfile = '../data/test/mexico_k_1_layers_5.csv'
+profile_file = '../data/profiles.csv'
+input_folder = ''
+return_results = False
+plot_stuff = False
 
-    preds_dict = {}
+h = '04_test_gradie_boosting.py -h <help> -i <input file> -f <input folder> -p <profiles file> -g <plot>'
 
-    for i, key in enumerate(clf.classes_):
-        preds_dict[key] = preds[:, i]
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hi:f:p:rg")
+except getopt.GetoptError:
+    print(h)
+    sys.exit(2)
 
-    preds_df = pd.DataFrame.from_dict(preds_dict)
-    preds_df["Label"] = list(y_test)
-    preds_df.to_csv(f'preds_{filename}.csv', index=False)
+for opt, arg in opts:
+    if opt == '-h':
+        print(h)
+        sys.exit()
+    elif opt in ('-i'):
+        inputfile = arg
+    elif opt in ('-f'):
+        input_folder = arg
+    elif opt in ('-p'):
+        profile_file = arg
+    elif opt in ('-r'):
+        return_results = True
+    elif opt in ('-g'):
+        plot_stuff = True
 
 
-def get_data():
-    inputfile = '../data/test/mexico_k_1_layers_5.csv'
-    profile_file = '../data/profiles.csv'
-    profiles_file = pd.read_csv(profile_file)
-    profiles_file = profiles_file[['profile_id', 'cwrb_reference_soil_group']]
-    data = pd.read_csv(inputfile)
-    data = profiles_file.merge(data, how="inner", left_on=[
+if input_folder != '':
+    files = listdir(input_folder)
+else:
+    files = [inputfile]
+
+profiles = pd.read_csv(profile_file)
+profiles = profiles[['profile_id', 'cwrb_reference_soil_group']]
+
+final_results = []
+for file in files:
+    print(f'testing {file}')
+    test_results = []
+    test_results_y_true = list()
+    test_results_y_pred = list()
+
+    print('Training XGB on {}'.format(file))
+    if input_folder != '':
+        data = pd.read_csv(input_folder + '/' + file)
+    else:
+        data = pd.read_csv(file)
+
+    data.dropna(inplace=True)
+    data = profiles.merge(data, how="inner", left_on=[
         'profile_id'], right_on=['profile_id'])
 
     data = remove_small_classes(data, 15)
-    # data = scale_data(data)
 
-    y = data.cwrb_reference_soil_group.astype(str)
+    y = data.cwrb_reference_soil_group
     X = data.drop(['profile_id', 'cwrb_reference_soil_group'], axis=1)
 
-    return X, y
+    # Remove unecessary columns
+    # X = remove_lat_lon(X)
+    X = X.drop(columns=list(
+        X.loc[:, X.columns.str.contains('profile_layer_id')]))
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y)
+
+    clf = XGBClassifier(n_estimators=300, min_child_weight=7,
+                        gamma=0.2, subsample=0.8, colsample_bytree=0.8, n_jobs=-1)
+
+    res = cross_val_score(clf, X_train, y_train, cv=10, scoring=make_scorer(
+        classification_report_with_accuracy_score))
+
+    clf.fit(X_train, y_train)
+    # y_pred = clf.predict(X_test)
+    # print(accuracy_score(y_test, y_pred))
+
+    print('Results --------------\n\n\n\n')
+    classification_report_with_accuracy_score(
+        test_results_y_true, test_results_y_pred, print_score=True)
+
+    kappa = cohen_kappa_score(test_results_y_true, test_results_y_pred)
+    print('Fold accuracy', res, '\nAverage: ',
+          np.mean(res), 'Kappa Score', kappa)
+    final_results.append((file, str(np.mean(res)), kappa))
+    print('Results  --------------\n\n\n\n')
+
+    # Plot things
+    if plot_stuff:
+        labels = list(y.value_counts().index)
+        plot_confusion_matrix_2(test_results_y_true,
+                                test_results_y_pred, classes=labels)
+
+        df_ = pd.DataFrame(X.columns, columns=['feature'])
+        df_['fscore'] = clf.feature_importances_[:, ]
+        df_.sort_values('fscore', ascending=False, inplace=True)
+        df_ = df_[0:10]
+        df_.sort_values('fscore', ascending=True, inplace=True)
+        df_.plot(kind='barh', x='feature', y='fscore',
+                 color='blue', legend=False)
+        plt.xlabel('Relative Importance')
+        plt.ylabel('')
+        plt.tight_layout()
+        plt.show()
+        # plt.savefig('feature_importance_{}.pdf'.format(
+        #    basename(file)))
 
 
-# Actual Code
-test_results = []
-test_results_y_true = list()
-test_results_y_pred = list()
-
-X, y = get_data()
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y)
-
-
-clf = XGBClassifier(n_estimators=300, min_child_weight=7,
-                    gamma=0.2, subsample=0.8, colsample_bytree=0.8, n_jobs=-1)
-
-res = cross_val_score(clf, X_train, y_train, cv=10, scoring=make_scorer(
-    classification_report_with_accuracy_score))
-
-
-print('Results --------------\n\n\n\n')
-classification_report_with_accuracy_score(
-    test_results_y_true, test_results_y_pred, print_score=True)
-
-kappa = cohen_kappa_score(test_results_y_true, test_results_y_pred)
-print('Fold accuracy', res, '\nAverage: ',
-      np.mean(res), 'Kappa Score', kappa)
-print(f"acc {str(np.mean(res))}, kappa: {kappa}")
-
-# Unique classes sorted by their number of occurrences
-labels = list(y.value_counts().index)
-plot_confusion_matrix(test_results_y_true,
-                      test_results_y_pred, classes=labels)
-
-
-#clf.fit(X_train, y_train)
-#return_preds(clf, X_test, y_test, "preds_gradient_boosting")
-
-"""
-
-
-y_pred = clf.predict(X_test)
-
-print(f"kappa: {cohen_kappa_score(y_test, y_pred)}")
-
-
-parameters = {"learning_rate": [0.05, 0.10, 0.15, 0.20, 0.25, 0.30],
-              "max_depth": [3, 4, 5, 6, 8, 10, 12, 15],
-              "min_child_weight": [1, 3, 5, 7],
-              "gamma": [0.0, 0.1, 0.25, 0.4],
-              "colsample_bytree": [0.3, 0.4, 0.5, 0.7]}
-
-
-
-              'gamma':[i/10.0 for i in range(0,5)]
-
-parameters = {
-    "learning_rate": [0.1],
-    "n_estimators": [300],
-    "max_depth": [5],
-    "min_child_weight": [7],
-    'gamma': [0.2],
-    'subsample': [0.8],
-    'colsample_bytree': [0.8]
-
-}
-
-clf = GridSearchCV(XGBClassifier(
-    n_estimators=150, n_jobs=-1), parameters, cv=5, n_jobs=-1, verbose=2)
-clf.fit(X_train, y_train)
-
-print(clf.best_params_)
-
-y_pred = clf.besta_estimator_.predict(X_test)
-
-print(f"kappa: {cohen_kappa_score(y_test, y_pred)}")
-"""
+# Print and store final results
+if return_results:
+    for line in final_results:
+        print(line)
+    results_df = pd.DataFrame(final_results, columns=[
+        "Filename", "Accuracy", "Kappa"])
+    results_df.to_csv('results.csv', index=False)

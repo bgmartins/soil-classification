@@ -25,7 +25,6 @@ def merge_profile_by_most_present(layers):
             temp_overlap = getOverlap([l._ud, l._ld], [
                 default_depths[i-1], default_depths[i]])
             if temp_overlap > overlap:
-                # Multiply by the weight and add to the row
                 overlap = temp_overlap
                 row = layers.iloc[[j]]
             j += 1
