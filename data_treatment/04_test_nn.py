@@ -11,6 +11,7 @@ from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 from keras.utils import np_utils
 from sklearn.metrics import cohen_kappa_score
+from keras.utils import plot_model
 
 import sys
 sys.path.append('./utils')
@@ -205,17 +206,8 @@ def get_data_all():
 
 def create_model_linear(profile_data, layer_data, n_classes):
     model = Sequential()
-    model.add(Dense(128, activation="relu",
+    model.add(Dense(64, activation="relu",
                     input_shape=(layer_data.shape[1:])))
-    model.add(Dense(128, activation="relu"))
-    model.add(Dropout(0.2))
-    model.add(Dense(64, activation="relu"))
-    model.add(Dense(64, activation="relu"))
-    model.add(Dropout(0.2))
-
-    model.add(Dense(32, activation="relu"))
-    model.add(Dense(32, activation="relu"))
-    model.add(Dropout(0.2))
 
     model.add(Flatten())
     model.add(Dense(n_classes, activation='softmax'))
@@ -236,7 +228,7 @@ def create_model(profile_data, layer_data, n_classes):
     middle_layer = Bidirectional(
         LSTM(16, return_sequences=True))(masking_layer)
 
-    dropout_layer = TimeDistributed(Dropout(0.1))(middle_layer)
+    dropout_layer = TimeDistributed(Dropout(0.2))(middle_layer)
 
     after_dropout_layer = Bidirectional(LSTM(16))(dropout_layer)
     #after_dropout_layer = Bidirectional(NestedLSTM(units=64, depth=2))(dropout_layer)
@@ -244,7 +236,9 @@ def create_model(profile_data, layer_data, n_classes):
 
     join_layer = concatenate([output_profile, after_dropout_layer])
 
-    output_final = Dense(n_classes, activation='softmax')(join_layer)
+    test = Dense(16, activation="relu")(join_layer)
+
+    output_final = Dense(n_classes, activation='softmax')(test)
 
     opt = Adam(lr=0.0005, decay=1e-6)
     model = Model(inputs=[input_profile, input_layer], outputs=output_final)
@@ -272,9 +266,12 @@ X_test_profile = profile_data[:1000]
 y_train = y[1000:]
 y_test = y[:1000]
 
+plot_model(model, show_layer_names=False, to_file='model.pdf')
+
 
 history = model.fit([X_train_profile, X_train_layer],
                     y_train, epochs=500, validation_split=0.2, callbacks=[es])
+
 
 plot_loss(history)
 plot_accuracy(history)

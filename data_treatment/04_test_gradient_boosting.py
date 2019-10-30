@@ -170,7 +170,6 @@ for file in files:
     X = data.drop(['profile_id', 'cwrb_reference_soil_group'], axis=1)
 
     # Remove unecessary columns
-    # X = remove_lat_lon(X)
     X = X.drop(columns=list(
         X.loc[:, X.columns.str.contains('profile_layer_id')]))
 
