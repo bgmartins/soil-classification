@@ -10,7 +10,7 @@ pip install pandas matplotlib sklearn xgboost seaborn numpy
 ```
 
 ## To run the project
-To create the various representaions of the data first run 
+To create the various representations of the data, first run :
 ```
 data_treatment/create_sets.sh	
 ```
