@@ -16,5 +16,5 @@ data_treatment/create_sets.sh
 ```
 After that simply run the algorithm and the data representaion required:
 ```
-python3 04_test_random_forests.py -i ../data/test/mexico_k_2_standard.cs
+python3 04_test_random_forests.py -i ../data/test/mexico_k_2_standard.csv
 ```
