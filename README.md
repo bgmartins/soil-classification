@@ -14,7 +14,7 @@ To create the various representations of the data, first run :
 ```
 data_treatment/create_sets.sh	
 ```
-After that simply run the algorithm and the data representaion required:
+After that simply run the algorithm and the data representation required:
 ```
 python3 04_test_random_forests.py -i ../data/test/mexico_k_2_standard.csv
 ```
